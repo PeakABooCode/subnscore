@@ -1,0 +1,59 @@
+// server/routes/authRoutes.js
+import express from "express";
+import bcrypt from "bcrypt";
+import passport from "passport";
+import pool from "../config/db.js";
+
+const router = express.Router();
+
+// --- REGISTER ROUTE ---
+router.post("/register", async (req, res) => {
+  const { name, email, password } = req.body;
+  try {
+    // Hash the password (salt rounds = 10)
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Save to database
+    const newUser = await pool.query(
+      "INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email",
+      [name, email, passwordHash],
+    );
+
+    // Automatically log them in after registering
+    req.login(newUser.rows[0], (err) => {
+      if (err) throw err;
+      res.json({ message: "Registered successfully", user: newUser.rows[0] });
+    });
+  } catch (err) {
+    if (err.code === "23505")
+      return res.status(400).json({ error: "Email already exists" });
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// --- LOGIN ROUTE ---
+router.post("/login", passport.authenticate("local"), (req, res) => {
+  // If passport fails, it automatically sends a 401 error.
+  // If it succeeds, it reaches here.
+  res.json({ message: "Logged in successfully", user: req.user });
+});
+
+// --- LOGOUT ROUTE ---
+router.post("/logout", (req, res, next) => {
+  req.logout((err) => {
+    if (err) return next(err);
+    res.json({ message: "Logged out successfully" });
+  });
+});
+
+// --- GET CURRENT USER (Session Check) ---
+router.get("/me", (req, res) => {
+  if (req.isAuthenticated()) {
+    res.json({ user: req.user });
+  } else {
+    res.status(401).json({ error: "Not authenticated" });
+  }
+});
+
+export default router;
