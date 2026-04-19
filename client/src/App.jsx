@@ -137,6 +137,12 @@ export default function App() {
     }
   };
 
+  const handleDemoLogin = () => {
+    setUser({ name: "Guest Coach", email: "demo@subnscore.com" });
+    setView("SETUP");
+    showNotification("Demo Mode Active: Stats won't be saved to DB.");
+  };
+
   // --- Game Logic Handlers ---
   const handleAddPlayer = (e) => {
     e.preventDefault();
@@ -350,6 +356,7 @@ export default function App() {
             authForm={authForm}
             setAuthForm={setAuthForm}
             handleLocalAuth={handleLocalAuth}
+            handleDemoLogin={handleDemoLogin}
           />
         )}
         {user && view === "SETUP" && (
@@ -409,6 +416,7 @@ function AuthView({
   authForm,
   setAuthForm,
   handleLocalAuth,
+  handleDemoLogin,
 }) {
   return (
     <div className="flex items-center justify-center min-h-[70vh]">
@@ -455,6 +463,15 @@ function AuthView({
             {authMode === "login" ? "Sign In" : "Create Account"}
           </button>
         </form>
+
+        {/* DEMO BUTTON */}
+        <button
+          onClick={handleDemoLogin}
+          className="w-full mt-4 bg-emerald-600 text-white py-2 rounded font-bold hover:bg-emerald-700 transition-colors"
+        >
+          Try Demo (No Login Required)
+        </button>
+
         <button
           onClick={() =>
             (window.location.href = "http://localhost:5000/api/auth/google")
