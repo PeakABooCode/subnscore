@@ -23,6 +23,7 @@ export default function App() {
   const [view, setView] = useState("AUTH"); // AUTH, SETUP, LIVE, STATS
   const [notification, setNotification] = useState(null);
   const [actionHistory, setActionHistory] = useState([]);
+  const [pendingSwapId, setPendingSwapId] = useState(null);
 
   // --- Auth State ---
   const [authMode, setAuthMode] = useState("login");
@@ -291,6 +292,62 @@ export default function App() {
     ]);
   };
 
+  const handleSwap = (playerId) => {
+    // 1. Rule Check: Clock must be stopped
+    if (isRunning) {
+      showNotification("Pause the clock to make substitutions!", "error");
+      return;
+    }
+
+    // 2. If nothing is selected yet, select this player
+    if (!pendingSwapId) {
+      setPendingSwapId(playerId);
+      return;
+    }
+
+    // 3. If clicking the same person, deselect them
+    if (pendingSwapId === playerId) {
+      setPendingSwapId(null);
+      return;
+    }
+
+    const firstIsOnCourt = court.includes(pendingSwapId);
+    const secondIsOnCourt = court.includes(playerId);
+
+    // 4. Case: Both are on the Bench or Both are on Court
+    // Instead of swapping, just switch the selection to the new player
+    if (firstIsOnCourt === secondIsOnCourt) {
+      setPendingSwapId(playerId);
+      return;
+    }
+
+    // 5. Case: One is Court, One is Bench -> PERFORM THE SWAP
+    const playerOut = firstIsOnCourt ? pendingSwapId : playerId;
+    const playerIn = firstIsOnCourt ? playerId : pendingSwapId;
+
+    // Update Stints (Out)
+    setStints((prev) =>
+      prev.map((s) =>
+        s.playerId === playerOut && s.clockOut === null
+          ? { ...s, clockOut: clock }
+          : s,
+      ),
+    );
+
+    // Update Stints (In)
+    setStints((prev) => [
+      ...prev,
+      { playerId: playerIn, quarter, clockIn: clock, clockOut: null },
+    ]);
+
+    // Update Court array
+    setCourt((prev) => [...prev.filter((id) => id !== playerOut), playerIn]);
+
+    // Cleanup
+    setPendingSwapId(null);
+    showNotification("Substitution successful!");
+  };
+
   const addTimeout = () => {
     // RULE: Timeouts are almost always called when the clock is stopped
     // or during a dead ball. We will enforce a pause here too.
@@ -483,6 +540,8 @@ export default function App() {
             undoLastAction={undoLastAction}
             actionHistory={actionHistory}
             teamMeta={teamMeta}
+            handleSwap={handleSwap}
+            pendingSwapId={pendingSwapId}
           />
         )}
         {user && view === "STATS" && (
