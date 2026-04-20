@@ -248,29 +248,57 @@ export default function App() {
   };
 
   const subOut = (playerId) => {
-    setCourt(court.filter((id) => id !== playerId));
-    setStints(
-      stints.map((s) =>
+    // RULE: Substitutions only allowed when clock is stopped
+    if (isRunning) {
+      alert("Clock must be PAUSED to make substitutions (Dead Ball Rule).");
+      return;
+    }
+
+    setStints((prev) =>
+      prev.map((s) =>
         s.playerId === playerId && s.clockOut === null
           ? { ...s, clockOut: clock }
           : s,
       ),
     );
+    setCourt((prev) => prev.filter((id) => id !== playerId));
+    setActionHistory((prev) => [
+      ...prev,
+      { type: "SUB_OUT", playerId, clock, quarter },
+    ]);
   };
 
   const subIn = (playerId) => {
-    if (court.length >= 5) return showNotification("Court is full!");
-    setCourt([...court, playerId]);
-    setStints([
-      ...stints,
-      {
-        id: Math.random().toString(),
-        playerId,
-        quarter,
-        clockIn: clock,
-        clockOut: null,
-      },
+    // RULE: Substitutions only allowed when clock is stopped
+    if (isRunning) {
+      alert("Clock must be PAUSED to make substitutions (Dead Ball Rule).");
+      return;
+    }
+
+    if (court.length >= 5) {
+      alert("Only 5 players allowed on court.");
+      return;
+    }
+
+    setStints((prev) => [
+      ...prev,
+      { playerId, quarter, clockIn: clock, clockOut: null },
     ]);
+    setCourt((prev) => [...prev, playerId]);
+    setActionHistory((prev) => [
+      ...prev,
+      { type: "SUB_IN", playerId, clock, quarter },
+    ]);
+  };
+
+  const addTimeout = () => {
+    // RULE: Timeouts are almost always called when the clock is stopped
+    // or during a dead ball. We will enforce a pause here too.
+    if (isRunning) {
+      alert("Pause the clock to record a Timeout.");
+      return;
+    }
+    setTimeouts([...timeouts, { quarter, time: clock }]);
   };
 
   const advanceQuarter = () => {
@@ -451,6 +479,7 @@ export default function App() {
             teamFouls={teamFouls}
             setTimeouts={setTimeouts}
             timeouts={timeouts}
+            addTimeout={addTimeout}
             undoLastAction={undoLastAction}
             actionHistory={actionHistory}
             teamMeta={teamMeta}

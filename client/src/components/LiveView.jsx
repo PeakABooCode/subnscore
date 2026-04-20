@@ -15,6 +15,7 @@ export default function LiveView({
   teamFouls,
   setTimeouts,
   timeouts,
+  addTimeout,
   undoLastAction,
   actionHistory,
   teamMeta,
@@ -103,7 +104,6 @@ export default function LiveView({
                           +3
                         </button>
                       </div>
-
                       {/* FOUL BUTTON */}
                       <button
                         onClick={() => addStat(id, "fouls", 1)}
@@ -114,11 +114,15 @@ export default function LiveView({
                         </span>
                         <span className="font-bold">{stats.fouls}</span>
                       </button>
-
                       {/* SUB OUT BUTTON */}
                       <button
                         onClick={() => subOut(id)}
-                        className="px-3 h-10 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-black text-slate-600 transition-colors"
+                        disabled={isRunning}
+                        className={`ml-2 px-3 py-2 rounded text-[10px] font-black transition-all ${
+                          isRunning
+                            ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                            : "bg-slate-200 hover:bg-slate-300 text-slate-600"
+                        }`}
                       >
                         OUT
                       </button>
@@ -143,7 +147,12 @@ export default function LiveView({
                     <button
                       key={p.id}
                       onClick={() => subIn(p.id)}
-                      className="bg-white border-2 border-slate-100 px-4 py-2 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm flex flex-col items-start min-w-[120px]"
+                      disabled={isRunning}
+                      className={`px-4 py-2 rounded-lg transition-all shadow-sm flex flex-col items-start min-w-[120px] ${
+                        isRunning
+                          ? "bg-slate-50 border-slate-100 opacity-50 cursor-not-allowed"
+                          : "bg-white border-slate-200 hover:border-blue-500 hover:bg-blue-50"
+                      }`}
                     >
                       <span className="font-bold text-slate-700">
                         #{p.jersey} {p.name}
@@ -219,10 +228,13 @@ export default function LiveView({
 
             <div className="flex flex-col gap-2">
               <button
-                onClick={() =>
-                  setTimeouts([...timeouts, { quarter, time: clock }])
-                }
-                className="w-full border-2 border-slate-100 py-3 rounded-xl font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                onClick={addTimeout}
+                disabled={isRunning}
+                className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                  isRunning
+                    ? "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
+                    : "border-2 border-slate-100 text-slate-700 hover:bg-slate-50"
+                }`}
               >
                 Use Timeout (
                 {timeouts.filter((t) => t.quarter === quarter).length})
