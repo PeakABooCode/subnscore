@@ -68,10 +68,11 @@ export default function LiveView({
                 return (
                   <div
                     key={id}
-                    className="flex items-center justify-between p-3 bg-slate-50 border rounded-lg hover:border-blue-300 transition-colors"
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-slate-50 border rounded-lg hover:border-blue-300 transition-colors gap-3"
                   >
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-800">
+                    {/* PLAYER INFO SECTION */}
+                    <div className="flex flex-col min-w-0">
+                      <span className="font-bold text-slate-800 truncate">
                         #{p.jersey} {p.name}
                       </span>
                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
@@ -79,7 +80,8 @@ export default function LiveView({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    {/* BUTTONS SECTION: This wraps on mobile */}
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
                       {/* SCORING BUTTONS */}
                       <div className="flex bg-white rounded shadow-sm border p-1 gap-1">
                         <button
@@ -105,7 +107,7 @@ export default function LiveView({
                       {/* FOUL BUTTON */}
                       <button
                         onClick={() => addStat(id, "fouls", 1)}
-                        className="w-10 h-10 bg-red-50 text-red-600 border border-red-100 rounded flex flex-col items-center justify-center hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                        className="h-10 px-2 bg-red-50 text-red-600 border border-red-100 rounded flex flex-col items-center justify-center hover:bg-red-600 hover:text-white transition-all shadow-sm"
                       >
                         <span className="text-[10px] font-bold leading-none">
                           FOUL
@@ -116,7 +118,7 @@ export default function LiveView({
                       {/* SUB OUT BUTTON */}
                       <button
                         onClick={() => subOut(id)}
-                        className="ml-2 px-3 py-2 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-black text-slate-600 transition-colors"
+                        className="px-3 h-10 bg-slate-200 hover:bg-slate-300 rounded text-[10px] font-black text-slate-600 transition-colors"
                       >
                         OUT
                       </button>
