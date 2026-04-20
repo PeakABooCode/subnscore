@@ -862,8 +862,14 @@ function LiveView({
               Quarter {quarter}
             </div>
 
-            {/* The clock text formatting assumes you still have `formatTime` defined in App.jsx */}
-            <div className="text-6xl font-mono font-bold my-4 tabular-nums">
+            {/* THE VISUAL PAUSE CLOCK */}
+            <div
+              className={`text-6xl font-mono font-bold my-4 tabular-nums transition-colors duration-300 ${
+                !isRunning && clock > 0 && clock < 600
+                  ? "text-red-500 animate-pulse"
+                  : "text-white"
+              }`}
+            >
               {Math.floor(clock / 60)
                 .toString()
                 .padStart(2, "0")}
