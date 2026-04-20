@@ -366,33 +366,42 @@ export default function App() {
 
       {user && (
         <nav className="bg-slate-900 text-white shadow-md sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="font-bold text-lg flex items-center gap-2">
-              <Activity className="text-amber-400" /> SubNScore
+          <div className="max-w-7xl mx-auto px-2 sm:px-4 h-16 flex items-center justify-between gap-2">
+            {/* LOGO: Hide text on tiny screens, show on small+ */}
+            {/* LOGO: Always show icon, show text on most screens */}
+            <div className="font-bold text-lg flex items-center gap-2 flex-shrink-0">
+              <Activity className="text-amber-400" />
+              {/* Changed 'hidden sm:block' to 'hidden min-[360px]:block' */}
+              <span className="hidden min-[360px]:block">SubNScore</span>
             </div>
-            <div className="flex bg-slate-800 rounded-lg p-1">
+
+            {/* TABS: Use smaller padding on mobile */}
+            <div className="flex bg-slate-800 rounded-lg p-1 min-w-0">
               <button
                 onClick={() => setView("SETUP")}
-                className={`px-3 py-1.5 rounded-md text-sm ${view === "SETUP" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm transition-colors ${view === "SETUP" ? "bg-white text-slate-900" : "text-slate-300 hover:text-white"}`}
               >
                 Setup
               </button>
               <button
                 onClick={() => setView("LIVE")}
-                className={`px-3 py-1.5 rounded-md text-sm ${view === "LIVE" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm transition-colors ${view === "LIVE" ? "bg-white text-slate-900" : "text-slate-300 hover:text-white"}`}
               >
                 Live
               </button>
               <button
                 onClick={() => setView("STATS")}
-                className={`px-3 py-1.5 rounded-md text-sm ${view === "STATS" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm transition-colors ${view === "STATS" ? "bg-white text-slate-900" : "text-slate-300 hover:text-white"}`}
               >
                 Report
               </button>
             </div>
+
+            {/* LOGOUT: Stays right */}
             <button
               onClick={handleLogout}
-              className="text-slate-400 hover:text-red-400"
+              className="text-slate-400 hover:text-red-400 p-1 flex-shrink-0"
+              title="Logout"
             >
               <LogOut size={20} />
             </button>
