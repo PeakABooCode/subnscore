@@ -78,10 +78,13 @@ export default function SetupView({
           </span>
         </h2>
 
-        <form onSubmit={handleAddPlayer} className="flex gap-2">
+        <form
+          onSubmit={handleAddPlayer}
+          className="flex flex-col sm:flex-row gap-3"
+        >
           <input
             required
-            className="border p-2.5 rounded-lg flex-1 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+            className="border p-2.5 rounded-lg flex-1 min-w-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
             placeholder="Player Name"
             value={newPlayer.name}
             onChange={(e) =>
@@ -90,7 +93,7 @@ export default function SetupView({
           />
           <input
             required
-            className="border p-2.5 rounded-lg w-24 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+            className="border p-2.5 rounded-lg sm:w-28 min-w-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
             placeholder="Jersey #"
             value={newPlayer.jersey}
             onChange={(e) =>
@@ -99,9 +102,9 @@ export default function SetupView({
           />
           <button
             type="submit"
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm"
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
           >
-            Add
+            Add Player
           </button>
         </form>
 
