@@ -41,9 +41,9 @@ export default function App() {
       const savedMeta = localStorage.getItem("subnscore_teamMeta");
       return savedMeta
         ? JSON.parse(savedMeta)
-        : { teamName: "", opponent: "", league: "", season: "Fall 2026" };
+        : { teamName: "", opponent: "", league: "", season: "" };
     } catch {
-      return { teamName: "", opponent: "", league: "", season: "Fall 2026" };
+      return { teamName: "", opponent: "", league: "", season: "" };
     }
   });
 
@@ -123,10 +123,15 @@ export default function App() {
         const res = await axios.post("/api/auth/register", authForm);
         setUser(res.data.user);
         setView("SETUP");
-        showNotification("Account created!");
+        showNotification("Account created successfully!");
       }
     } catch (err) {
-      showNotification(err.response?.data?.message || "Auth failed.");
+      console.error("Full Auth Error Response:", err.response);
+      const errorMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Authentication failed.";
+      showNotification(errorMsg);
     } finally {
       setIsAuthLoading(false);
     }
@@ -134,42 +139,21 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
-      // 1. Tell the backend to kill the session cookie
       await axios.post("/api/auth/logout");
-
-      // 2. Wipe the browser's LocalStorage "safety net"
       localStorage.removeItem("subnscore_teamMeta");
       localStorage.removeItem("subnscore_roster");
       localStorage.removeItem("subnscore_playerStats");
 
-      // 3. Reset all React states to initial values (Refreshes Setup, Live, and Reports)
       setUser(null);
       setView("AUTH");
-      setTeamMeta({
-        teamName: "",
-        opponent: "",
-        league: "",
-        season: "Fall 2026",
-      });
-      setRoster([]);
-      setPlayerStats({});
-      setCourt([]);
-      setStints([]);
-      setQuarter(1);
-      setClock(QUARTER_SECONDS);
-      setIsRunning(false);
-      setActionHistory([]);
-      setHistoryData(null);
-      setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
-      setTimeouts([]);
-      setSetupAttempted(false);
-      setPendingSwapId(null);
-
+      // Complete Refresh on Logout
+      resetGame(true);
       showNotification("Logged out successfully. Session cleared.");
     } catch (err) {
       showNotification("Error logging out.");
     }
   };
+
   // --- Game Setup Handlers ---
   const handleAddPlayer = (e) => {
     e.preventDefault();
@@ -208,9 +192,26 @@ export default function App() {
     setView("LIVE");
   };
 
-  const resetGame = () => {
-    if (!window.confirm("Start new game? This clears current live stats."))
+  const resetGame = (force = false) => {
+    if (
+      !force &&
+      !window.confirm(
+        "Start new game? This clears everything including textboxes.",
+      )
+    )
       return;
+
+    // 1. Wipe Team & Roster (The "Textboxes")
+    setTeamMeta({
+      teamName: "",
+      opponent: "",
+      league: "",
+      season: "",
+    });
+    setRoster([]);
+    setSetupAttempted(false);
+
+    // 2. Wipe Game Stats & Logic
     setPlayerStats({});
     setCourt([]);
     setStints([]);
@@ -220,6 +221,10 @@ export default function App() {
     setActionHistory([]);
     setHistoryData(null);
     setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+    setTimeouts([]);
+    setPendingSwapId(null);
+
+    // 3. Go back to Setup View
     setView("SETUP");
   };
 
@@ -270,13 +275,11 @@ export default function App() {
 
   const addStat = (playerId, type, amount) => {
     setPlayerStats((prev) => {
-      // Safety Check: If this player doesn't exist in stats yet, create them on the fly
       const currentPlayerStats = prev[playerId] || {
         score: 0,
         fouls: 0,
         turnovers: 0,
       };
-
       return {
         ...prev,
         [playerId]: {
@@ -355,11 +358,12 @@ export default function App() {
   const handleSaveGame = async () => {
     if (user?.email === "demo@subnscore.com")
       return showNotification("Demo Mode: Cannot save.");
-    // ADDED SAFETY: filter out any undefined/null entries before reducing
+
     const teamScore = Object.values(playerStats).reduce((acc, curr) => {
-      if (!curr) return acc; // Skip if entry is missing
+      if (!curr) return acc;
       return acc + (curr.score || 0);
     }, 0);
+
     const oppScore = window.prompt(
       `Enter final score for ${teamMeta.opponent}:`,
       "0",
@@ -367,20 +371,47 @@ export default function App() {
     if (oppScore === null) return;
 
     try {
+      // Final Minutes and Seconds Calculation for the DB columns
+      const finalRosterWithMins = roster.map((player) => {
+        let totalSeconds = 0;
+        stints
+          .filter((s) => s.playerId === player.id)
+          .forEach((s) => {
+            const out =
+              s.clockOut !== null
+                ? s.clockOut
+                : s.quarter === quarter
+                  ? clock
+                  : 0;
+            totalSeconds += s.clockIn - out;
+          });
+
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        const formattedMins = `${mins}:${secs.toString().padStart(2, "0")}`;
+
+        return {
+          ...player,
+          calculatedMins: formattedMins,
+          rawSeconds: totalSeconds,
+        };
+      });
+
       const payload = {
         teamMeta,
-        roster,
+        roster: finalRosterWithMins,
         playerStats,
         actionHistory,
         timeouts,
         finalScoreUs: teamScore,
         finalScoreThem: parseInt(oppScore) || 0,
       };
+
       await axios.post("/api/games/save", payload);
       showNotification("Game saved to cloud!");
 
-      // Optional: Clear the screen automatically after saving so they can start the next game
-      resetGame();
+      // Pass 'true' to force reset everything (including textboxes) without a second prompt
+      resetGame(true);
     } catch (err) {
       showNotification("Save failed.");
     }
@@ -396,14 +427,17 @@ export default function App() {
         name: s.name,
         jersey: s.jersey_number,
       }));
+
       const historicalStats = {};
       stats.forEach((s) => {
         historicalStats[s.player_id] = {
           score: s.points,
           fouls: s.fouls,
           turnovers: s.turnovers,
+          minutes: s.minutes,
         };
       });
+
       const historicalActions = logs.map((l) => ({
         playerId: l.player_id,
         type: l.action_type,
@@ -427,15 +461,15 @@ export default function App() {
 
   if (isAuthLoading)
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading...
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500 font-bold">
+        Initializing Courtside...
       </div>
     );
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 flex flex-col relative">
       {notification && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl border border-slate-700 animate-bounce">
           {notification}
         </div>
       )}
@@ -445,7 +479,9 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-2 sm:px-4 h-16 flex items-center justify-between gap-2">
             <div className="font-bold text-lg flex items-center gap-2">
               <Activity className="text-amber-400" />
-              <span className="hidden min-[400px]:block">SubNScore</span>
+              <span className="hidden min-[400px]:block uppercase tracking-tighter">
+                SubNScore
+              </span>
             </div>
             <div className="flex bg-slate-800 rounded-lg p-1">
               <button
@@ -453,7 +489,7 @@ export default function App() {
                   setView("SETUP");
                   setHistoryData(null);
                 }}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "SETUP" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "SETUP" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
               >
                 Setup
               </button>
@@ -462,26 +498,26 @@ export default function App() {
                   setView("LIVE");
                   setHistoryData(null);
                 }}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "LIVE" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "LIVE" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
               >
                 Live
               </button>
               <button
                 onClick={() => setView("STATS")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "STATS" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "STATS" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
               >
                 Report
               </button>
               <button
                 onClick={() => setView("HISTORY")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "HISTORY" ? "bg-white text-slate-900" : "text-slate-300"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "HISTORY" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
               >
                 History
               </button>
             </div>
             <button
               onClick={handleLogout}
-              className="text-slate-400 hover:text-red-400"
+              className="text-slate-400 hover:text-red-400 transition-colors"
             >
               <LogOut size={20} />
             </button>
@@ -489,7 +525,7 @@ export default function App() {
         </nav>
       )}
 
-      <main className="flex-1 p-4 md:p-8">
+      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
         {!user && (
           <AuthView
             authMode={authMode}
@@ -559,7 +595,7 @@ export default function App() {
             teamMeta={historyData ? historyData.meta : teamMeta}
             quarter={historyData ? historyData.quarter : quarter}
             actionHistory={historyData ? historyData.actions : actionHistory}
-            resetGame={resetGame}
+            resetGame={() => (historyData ? setView("HISTORY") : resetGame())}
             handleSaveGame={handleSaveGame}
             isHistory={!!historyData}
           />

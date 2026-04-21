@@ -1,5 +1,12 @@
 import React from "react";
-import { Settings, UserPlus, Play, Pencil } from "lucide-react";
+import {
+  Settings,
+  UserPlus,
+  Play,
+  Pencil,
+  Trophy,
+  Calendar,
+} from "lucide-react";
 
 export default function SetupView({
   user,
@@ -25,7 +32,6 @@ export default function SetupView({
   const onEditClick = (p) => {
     const newName = window.prompt(`Edit name for jersey #${p.jersey}:`, p.name);
     if (newName !== null && newName.trim() !== "") {
-      // Also protect the edit popup from numbers!
       const lettersOnly = newName.replace(/[^a-zA-Z\s]/g, "");
       handleEditPlayer(p.id, capitalizeWords(lettersOnly.trim()));
     }
@@ -33,7 +39,7 @@ export default function SetupView({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* SECTION 1: TEAM INFORMATION */}
+      {/* SECTION 1: TEAM & TOURNAMENT INFORMATION */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
         <h2 className="text-xl font-bold mb-4 text-slate-800 flex items-center gap-2">
           <Settings className="text-blue-600" size={20} /> Game Setup
@@ -42,17 +48,17 @@ export default function SetupView({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* TEAM NAME INPUT */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+            <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
               Your Team Name
               {setupAttempted && !teamMeta.teamName.trim() && (
-                <span className="text-red-500 animate-pulse font-bold">*</span>
+                <span className="text-red-500 animate-pulse">*</span>
               )}
             </label>
             <input
               className={`border p-2.5 rounded-lg outline-none transition-all duration-200 ${
                 setupAttempted && !teamMeta.teamName.trim()
                   ? "border-red-500 bg-red-50 ring-1 ring-red-200"
-                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100 border-slate-200"
               }`}
               placeholder="e.g. Lakers"
               value={teamMeta.teamName}
@@ -67,17 +73,17 @@ export default function SetupView({
 
           {/* OPPONENT NAME INPUT */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+            <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
               Opponent Name
               {setupAttempted && !teamMeta.opponent.trim() && (
-                <span className="text-red-500 animate-pulse font-bold">*</span>
+                <span className="text-red-500 animate-pulse">*</span>
               )}
             </label>
             <input
               className={`border p-2.5 rounded-lg outline-none transition-all duration-200 ${
                 setupAttempted && !teamMeta.opponent.trim()
                   ? "border-red-500 bg-red-50 ring-1 ring-red-200"
-                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100 border-slate-200"
               }`}
               placeholder="e.g. Bulls"
               value={teamMeta.opponent}
@@ -85,6 +91,56 @@ export default function SetupView({
                 setTeamMeta({
                   ...teamMeta,
                   opponent: capitalizeWords(e.target.value),
+                })
+              }
+            />
+          </div>
+
+          {/* LEAGUE / TOURNAMENT INPUT */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
+              <Trophy size={12} className="inline mr-1" /> League / Tournament
+              {setupAttempted && !teamMeta.league.trim() && (
+                <span className="text-red-500 animate-pulse">*</span>
+              )}
+            </label>
+            <input
+              className={`border p-2.5 rounded-lg outline-none transition-all duration-200 ${
+                setupAttempted && !teamMeta.league.trim()
+                  ? "border-red-500 bg-red-50 ring-1 ring-red-200"
+                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100 border-slate-200"
+              }`}
+              placeholder="e.g. City League"
+              value={teamMeta.league}
+              onChange={(e) =>
+                setTeamMeta({
+                  ...teamMeta,
+                  league: capitalizeWords(e.target.value),
+                })
+              }
+            />
+          </div>
+
+          {/* SEASON INPUT */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
+              <Calendar size={12} className="inline mr-1" /> Season
+              {setupAttempted && !teamMeta.season.trim() && (
+                <span className="text-red-500 animate-pulse">*</span>
+              )}
+            </label>
+            <input
+              className={`border p-2.5 rounded-lg outline-none transition-all duration-200 ${
+                setupAttempted && !teamMeta.season.trim()
+                  ? "border-red-500 bg-red-50 ring-1 ring-red-200"
+                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100 border-slate-200"
+              }`}
+              placeholder="e.g. Fall 2026"
+              value={teamMeta.season}
+              onChange={(e) =>
+                setTeamMeta({
+                  ...teamMeta,
+                  season: capitalizeWords(e.target.value),
                 })
               }
             />
@@ -107,13 +163,11 @@ export default function SetupView({
         >
           <input
             required
-            className="border p-2.5 rounded-lg flex-1 min-w-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-            placeholder="Player Name (or skip for now)"
+            className="border border-slate-200 p-2.5 rounded-lg flex-1 min-w-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+            placeholder="Player Name"
             value={newPlayer.name}
             onChange={(e) => {
-              // 1. Strip out anything that is NOT a letter or a space
               const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, "");
-              // 2. Capitalize and save
               setNewPlayer({
                 ...newPlayer,
                 name: capitalizeWords(lettersOnly),
@@ -122,12 +176,11 @@ export default function SetupView({
           />
           <input
             required
-            inputMode="numeric" // Forces the number pad to open on smartphones!
-            className="border p-2.5 rounded-lg sm:w-28 min-w-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+            inputMode="numeric"
+            className="border border-slate-200 p-2.5 rounded-lg sm:w-28 min-w-0 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
             placeholder="Jersey #"
             value={newPlayer.jersey}
             onChange={(e) => {
-              // Strip out anything that is NOT a number (0-9)
               const numbersOnly = e.target.value.replace(/[^0-9]/g, "");
               setNewPlayer({ ...newPlayer, jersey: numbersOnly });
             }}
@@ -140,7 +193,6 @@ export default function SetupView({
           </button>
         </form>
 
-        {/* LIST OF ADDED PLAYERS */}
         <div className="mt-6 flex flex-wrap gap-2">
           {roster.length === 0 ? (
             <p className="text-slate-400 italic text-sm">
@@ -157,7 +209,6 @@ export default function SetupView({
                   {p.name}
                 </span>
 
-                {/* Edit Button */}
                 <button
                   type="button"
                   onClick={() => onEditClick(p)}
@@ -167,7 +218,6 @@ export default function SetupView({
                   <Pencil size={12} />
                 </button>
 
-                {/* Remove Button */}
                 <button
                   type="button"
                   onClick={() => handleRemovePlayer(p.id)}

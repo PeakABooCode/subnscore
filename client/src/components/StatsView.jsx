@@ -19,7 +19,7 @@ export default function StatsView({
   resetGame,
   actionHistory = [],
   handleSaveGame,
-  isHistory, // NEW: Prop to detect if we are viewing a past game
+  isHistory, // Prop to detect if we are viewing a past game
 }) {
   const [activeTab, setActiveTab] = useState("boxscore");
   const [isSaving, setIsSaving] = useState(false);
@@ -39,18 +39,23 @@ export default function StatsView({
   );
 
   const calculateMins = (pId) => {
-    // If it's a historical game, stints might be empty, so we return N/A or 0
-    if (isHistory || !stints) return "N/A";
-
-    let total = 0;
-    stints
-      .filter((s) => s.playerId === pId)
-      .forEach((s) => {
-        const out =
-          s.clockOut !== null ? s.clockOut : s.quarter === quarter ? clock : 0;
-        total += s.clockIn - out;
-      });
-    return formatTime(total);
+    // If it's a live game, we calculate based on the stints array
+    if (!isHistory && stints) {
+      let total = 0;
+      stints
+        .filter((s) => s.playerId === pId)
+        .forEach((s) => {
+          const out =
+            s.clockOut !== null
+              ? s.clockOut
+              : s.quarter === quarter
+                ? clock
+                : 0;
+          total += s.clockIn - out;
+        });
+      return formatTime(total);
+    }
+    return "0:00";
   };
 
   const getQuarterAppearances = () => {
@@ -59,7 +64,6 @@ export default function StatsView({
       quarters[i] = [];
     }
 
-    // If viewing history, we can derive appearances from action logs
     if (isHistory) {
       actionHistory.forEach((action) => {
         if (!quarters[action.quarter]) quarters[action.quarter] = [];
@@ -104,15 +108,17 @@ export default function StatsView({
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24">
-      {/* 1. REPORT HEADER */}
+      {/* 1. REPORT HEADER - UPDATED FOR DYNAMIC LEAGUE/SEASON */}
       <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl border-b-4 border-amber-500 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="text-center md:text-left">
           <h2 className="text-2xl md:text-3xl font-black text-amber-400 uppercase tracking-tighter">
             {teamMeta?.teamName || "Team"}{" "}
             {isHistory ? "Archive" : "Final Report"}
           </h2>
-          <p className="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
-            {teamMeta?.league} • {teamMeta?.season}
+          <p className="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest mt-1 flex items-center justify-center md:justify-start gap-2">
+            <span>{teamMeta?.league || "General League"}</span>
+            <span className="text-slate-600">•</span>
+            <span>{teamMeta?.season || "Unknown Season"}</span>
           </p>
         </div>
 
@@ -173,8 +179,8 @@ export default function StatsView({
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex justify-between items-center">
             <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase tracking-wider text-sm">
-              <Users size={18} className="text-blue-600" /> Complete Roster
-              Stats
+              <Users size={18} className="text-blue-600" /> Stats vs{" "}
+              {teamMeta?.opponent || "Opponent"}
             </h3>
           </div>
 
@@ -195,6 +201,7 @@ export default function StatsView({
                     score: 0,
                     fouls: 0,
                     turnovers: 0,
+                    minutes: "0:00",
                   };
                   return (
                     <tr
@@ -230,7 +237,10 @@ export default function StatsView({
                       </td>
                       <td className="p-4 text-center">
                         <span className="font-mono font-black text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg text-sm sm:text-base">
-                          {calculateMins(p.id)}
+                          {/* Show saved minutes from DB if viewing history */}
+                          {isHistory
+                            ? stats.minutes || "0:00"
+                            : calculateMins(p.id)}
                         </span>
                       </td>
                     </tr>
@@ -336,10 +346,9 @@ export default function StatsView({
           onClick={resetGame}
           className="w-full sm:w-auto order-2 sm:order-1 bg-white border-2 border-red-200 hover:bg-red-50 hover:border-red-500 text-red-600 font-black py-3 px-6 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
         >
-          <Trash2 size={18} /> {isHistory ? "Close View" : "Trash Game"}
+          <Trash2 size={18} /> {isHistory ? "Close Report" : "Trash Game"}
         </button>
 
-        {/* Hide Save button if we are viewing an archived game */}
         {!isHistory && (
           <button
             onClick={onSaveClick}

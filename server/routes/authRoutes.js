@@ -7,6 +7,7 @@ const router = express.Router();
 
 // --- REGISTER ROUTE ---
 router.post("/register", async (req, res) => {
+  console.log(`📝 Attempting registration for: ${req.body.email}`);
   const { name, email, password } = req.body;
   try {
     // Hash the password (salt rounds = 10)
@@ -25,10 +26,12 @@ router.post("/register", async (req, res) => {
       res.json({ message: "Registered successfully", user: newUser.rows[0] });
     });
   } catch (err) {
+    // PostgreSQL code for "Unique Violation"
     if (err.code === "23505")
       return res.status(400).json({ error: "Email already exists" });
     res.status(500).json({ error: "Server error" });
   }
+  console.log(`✅ User created and logged in: ${newUser.rows[0].id}`);
 });
 
 // --- LOGIN ROUTE ---
