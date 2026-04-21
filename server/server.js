@@ -8,6 +8,7 @@ import passport from "passport";
 import pool from "./config/db.js";
 import "./config/passport.js"; // Imports our passport config
 import authRoutes from "./routes/authRoutes.js"; // Imports our routes
+import gameRoutes from "./routes/gameRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,6 +46,7 @@ app.use(passport.session());
 
 // --- ROUTES ---
 app.use("/api/auth", authRoutes);
+app.use("/api/games", gameRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);

@@ -1,4 +1,3 @@
-// server/routes/authRoutes.js
 import express from "express";
 import bcrypt from "bcrypt";
 import passport from "passport";
@@ -55,5 +54,24 @@ router.get("/me", (req, res) => {
     res.status(401).json({ error: "Not authenticated" });
   }
 });
+
+// --- GOOGLE AUTH TRIGGER ---
+// This is what window.location.href = ".../google" hits
+router.get(
+  "/google",
+  passport.authenticate("google", { scope: ["profile", "email"] }),
+);
+
+// --- GOOGLE CALLBACK ---
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: "http://localhost:5173/login",
+  }),
+  (req, res) => {
+    // Successful login -> Redirect back to your React app
+    res.redirect("http://localhost:5173/");
+  },
+);
 
 export default router;

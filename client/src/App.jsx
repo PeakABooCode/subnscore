@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Activity, LogOut } from "lucide-react"; // Only keeping the icons actually used here
+import { Activity, LogOut } from "lucide-react";
 
 // --- Imports from the new refactored folders ---
 import AuthView from "./components/AuthView";
@@ -14,18 +14,14 @@ import { QUARTER_SECONDS } from "./utils/helpers";
 axios.defaults.withCredentials = true;
 
 export default function App() {
-  // --- Custom Hooks ---
-  // We grab the timer logic from your new hook
   const { clock, setClock, isRunning, setIsRunning } = useTimer();
 
-  // --- Global App State ---
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("AUTH"); // AUTH, SETUP, LIVE, STATS
+  const [view, setView] = useState("AUTH");
   const [notification, setNotification] = useState(null);
   const [actionHistory, setActionHistory] = useState([]);
   const [pendingSwapId, setPendingSwapId] = useState(null);
 
-  // --- Auth State ---
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({
     email: "",
@@ -34,7 +30,6 @@ export default function App() {
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // --- Game State (With LocalStorage Safety Net) ---
   const [teamMeta, setTeamMeta] = useState(() => {
     try {
       const savedMeta = localStorage.getItem("subnscore_teamMeta");
@@ -72,7 +67,6 @@ export default function App() {
     }
   });
 
-  // Game tracking variables
   const [newPlayer, setNewPlayer] = useState({ name: "", jersey: "" });
   const [quarter, setQuarter] = useState(1);
   const [court, setCourt] = useState([]);
@@ -81,20 +75,16 @@ export default function App() {
   const [timeouts, setTimeouts] = useState([]);
   const [setupAttempted, setSetupAttempted] = useState(false);
 
-  // --- LocalStorage Auto-Savers ---
   useEffect(() => {
     localStorage.setItem("subnscore_teamMeta", JSON.stringify(teamMeta));
   }, [teamMeta]);
-
   useEffect(() => {
     localStorage.setItem("subnscore_roster", JSON.stringify(roster));
   }, [roster]);
-
   useEffect(() => {
     localStorage.setItem("subnscore_playerStats", JSON.stringify(playerStats));
   }, [playerStats]);
 
-  // --- Session Check ---
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -115,7 +105,6 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  // --- Auth Handlers ---
   const handleLocalAuth = async (e) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -135,8 +124,7 @@ export default function App() {
         showNotification("Account created successfully!");
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.message || "Authentication failed.";
-      showNotification(errorMsg);
+      showNotification(err.response?.data?.message || "Authentication failed.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -155,20 +143,15 @@ export default function App() {
   };
 
   const resetGame = () => {
-    // 1. Ask for confirmation so they don't click it accidentally!
     if (
       !window.confirm(
         "Are you sure you want to start a new game? All current stats will be cleared.",
       )
     )
       return;
-
-    // 2. Wipe the browser's memory
     localStorage.removeItem("subnscore_teamMeta");
     localStorage.removeItem("subnscore_roster");
     localStorage.removeItem("subnscore_playerStats");
-
-    // 3. Reset all React State back to default
     setTeamMeta({
       teamName: "",
       opponent: "",
@@ -186,10 +169,44 @@ export default function App() {
     setTimeouts([]);
     setActionHistory([]);
     setSetupAttempted(false);
-
-    // 4. Send them back to the Setup screen
     setView("SETUP");
     showNotification("New game started. Data cleared!");
+  };
+
+  // --- NEW: SAVE GAME TO BACKEND ---
+  const handleSaveGame = async () => {
+    if (user?.email === "demo@subnscore.com") {
+      showNotification("Demo Mode: Stats cannot be saved to the database.");
+      return;
+    }
+
+    const teamScore = Object.values(playerStats).reduce(
+      (acc, curr) => acc + (curr.score || 0),
+      0,
+    );
+    const oppScore = window.prompt(
+      `Enter final score for ${teamMeta.opponent}:`,
+      "0",
+    );
+    if (oppScore === null) return; // User cancelled
+
+    try {
+      const payload = {
+        teamMeta,
+        roster,
+        playerStats,
+        actionHistory,
+        timeouts,
+        finalScoreUs: teamScore,
+        finalScoreThem: parseInt(oppScore) || 0,
+      };
+
+      await axios.post("/api/games/save", payload);
+      showNotification("Game successfully saved to cloud!");
+    } catch (err) {
+      console.error(err);
+      showNotification("Error saving game. Check your connection.");
+    }
   };
 
   const handleDemoLogin = () => {
@@ -198,20 +215,19 @@ export default function App() {
     showNotification("Demo Mode Active: Stats won't be saved to DB.");
   };
 
-  // --- Game Logic Handlers ---
   const handleAddPlayer = (e) => {
     e.preventDefault();
     if (!newPlayer.name || !newPlayer.jersey) return;
-
-    const isDuplicate = roster.some((p) => p.jersey === newPlayer.jersey);
-    if (isDuplicate) {
+    if (roster.some((p) => p.jersey === newPlayer.jersey)) {
       showNotification(`Jersey #${newPlayer.jersey} is already taken!`);
       return;
     }
-
     const id = Date.now().toString();
     setRoster([...roster, { ...newPlayer, id }]);
-    setPlayerStats({ ...playerStats, [id]: { score: 0, fouls: 0 } });
+    setPlayerStats({
+      ...playerStats,
+      [id]: { score: 0, fouls: 0, turnovers: 0 },
+    });
     setNewPlayer({ name: "", jersey: "" });
   };
 
@@ -228,12 +244,10 @@ export default function App() {
 
   const startGame = () => {
     setSetupAttempted(true);
-
     if (!teamMeta.teamName.trim() || !teamMeta.opponent.trim()) {
       showNotification("Please enter both Team Name and Opponent.");
       return;
     }
-
     if (roster.length < 5) {
       showNotification("Add at least 5 players.");
       return;
@@ -253,12 +267,7 @@ export default function App() {
   };
 
   const subOut = (playerId) => {
-    // RULE: Substitutions only allowed when clock is stopped
-    if (isRunning) {
-      alert("Clock must be PAUSED to make substitutions (Dead Ball Rule).");
-      return;
-    }
-
+    if (isRunning) return alert("Clock must be PAUSED to make substitutions.");
     setStints((prev) =>
       prev.map((s) =>
         s.playerId === playerId && s.clockOut === null
@@ -274,17 +283,8 @@ export default function App() {
   };
 
   const subIn = (playerId) => {
-    // RULE: Substitutions only allowed when clock is stopped
-    if (isRunning) {
-      alert("Clock must be PAUSED to make substitutions (Dead Ball Rule).");
-      return;
-    }
-
-    if (court.length >= 5) {
-      alert("Only 5 players allowed on court.");
-      return;
-    }
-
+    if (isRunning) return alert("Clock must be PAUSED to make substitutions.");
+    if (court.length >= 5) return alert("Only 5 players allowed on court.");
     setStints((prev) => [
       ...prev,
       { playerId, quarter, clockIn: clock, clockOut: null },
@@ -297,86 +297,44 @@ export default function App() {
   };
 
   const handleSwap = (playerId) => {
-    // 1. Rule Check: Clock must be stopped
-    if (isRunning) {
-      showNotification("Pause the clock to make substitutions!", "error");
-      return;
-    }
-
-    // 2. If nothing is selected yet, select this player
-    if (!pendingSwapId) {
-      setPendingSwapId(playerId);
-      return;
-    }
-
-    // 3. If clicking the same person, deselect them
-    if (pendingSwapId === playerId) {
-      setPendingSwapId(null);
-      return;
-    }
-
-    const firstIsOnCourt = court.includes(pendingSwapId);
-    const secondIsOnCourt = court.includes(playerId);
-
-    // 4. Case: Both are on the Bench or Both are on Court
-    // Instead of swapping, just switch the selection to the new player
-    if (firstIsOnCourt === secondIsOnCourt) {
-      setPendingSwapId(playerId);
-      return;
-    }
-
-    // 5. Case: One is Court, One is Bench -> PERFORM THE SWAP
-    const playerOut = firstIsOnCourt ? pendingSwapId : playerId;
-    const playerIn = firstIsOnCourt ? playerId : pendingSwapId;
-
-    // Update Stints (Out)
+    if (isRunning)
+      return showNotification("Pause the clock to make substitutions!");
+    if (!pendingSwapId) return setPendingSwapId(playerId);
+    if (pendingSwapId === playerId) return setPendingSwapId(null);
+    const firstOn = court.includes(pendingSwapId);
+    const secondOn = court.includes(playerId);
+    if (firstOn === secondOn) return setPendingSwapId(playerId);
+    const pOut = firstOn ? pendingSwapId : playerId;
+    const pIn = firstOn ? playerId : pendingSwapId;
     setStints((prev) =>
       prev.map((s) =>
-        s.playerId === playerOut && s.clockOut === null
+        s.playerId === pOut && s.clockOut === null
           ? { ...s, clockOut: clock }
           : s,
       ),
     );
-
-    // Update Stints (In)
     setStints((prev) => [
       ...prev,
-      { playerId: playerIn, quarter, clockIn: clock, clockOut: null },
+      { playerId: pIn, quarter, clockIn: clock, clockOut: null },
     ]);
-
-    // Update Court array
-    setCourt((prev) => [...prev.filter((id) => id !== playerOut), playerIn]);
-
-    // Cleanup
+    setCourt((prev) => [...prev.filter((id) => id !== pOut), pIn]);
     setPendingSwapId(null);
     showNotification("Substitution successful!");
   };
 
   const addTimeout = () => {
-    // RULE: Timeouts are almost always called when the clock is stopped
-    // or during a dead ball. We will enforce a pause here too.
-    if (isRunning) {
-      alert("Pause the clock to record a Timeout.");
-      return;
-    }
+    if (isRunning) return alert("Pause the clock to record a Timeout.");
     setTimeouts([...timeouts, { quarter, time: clock }]);
   };
 
   const advanceQuarter = () => {
-    // Dynamically format the period name for the pop-up
-    const periodName =
+    const pName =
       quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
-
-    const confirmEnd = window.confirm(
-      `Are you sure you want to end ${periodName}?`,
-    );
-    if (!confirmEnd) return;
-
+    if (!window.confirm(`Are you sure you want to end ${pName}?`)) return;
     const updatedStints = stints.map((s) =>
       s.clockOut === null ? { ...s, clockOut: clock } : s,
     );
     const nextQ = quarter + 1;
-
     setStints([
       ...updatedStints,
       ...court.map((id) => ({
@@ -390,7 +348,9 @@ export default function App() {
     setQuarter(nextQ);
     setClock(QUARTER_SECONDS);
     setIsRunning(false);
-    showNotification(`Quarter ${nextQ} started.`);
+    showNotification(
+      `${nextQ > 4 ? "OT " + (nextQ - 4) : "Quarter " + nextQ} started.`,
+    );
   };
 
   const addStat = (playerId, type, amount) => {
@@ -401,7 +361,6 @@ export default function App() {
         [type]: (prev[playerId][type] || 0) + amount,
       },
     }));
-
     if (type === "fouls") {
       setTeamFouls((prev) => ({
         ...prev,
@@ -410,16 +369,16 @@ export default function App() {
       setIsRunning(false);
       showNotification("Foul called: Clock stopped.");
     }
-
-    setActionHistory((prev) => [...prev, { playerId, type, amount, quarter }]);
+    setActionHistory((prev) => [
+      ...prev,
+      { playerId, type, amount, quarter, clock },
+    ]);
   };
 
   const undoLastAction = () => {
     if (actionHistory.length === 0) return;
-
     const historyCopy = [...actionHistory];
     const lastAction = historyCopy.pop();
-
     setPlayerStats((prev) => ({
       ...prev,
       [lastAction.playerId]: {
@@ -430,14 +389,12 @@ export default function App() {
         ),
       },
     }));
-
     if (lastAction.type === "fouls") {
       setTeamFouls((prev) => ({
         ...prev,
         [lastAction.quarter]: Math.max(0, (prev[lastAction.quarter] || 0) - 1),
       }));
     }
-
     setActionHistory(historyCopy);
     showNotification("Last action undone.");
   };
@@ -460,15 +417,10 @@ export default function App() {
       {user && (
         <nav className="bg-slate-900 text-white shadow-md sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-2 sm:px-4 h-16 flex items-center justify-between gap-2">
-            {/* LOGO: Hide text on tiny screens, show on small+ */}
-            {/* LOGO: Always show icon, show text on most screens */}
             <div className="font-bold text-lg flex items-center gap-2 flex-shrink-0">
               <Activity className="text-amber-400" />
-              {/* Changed 'hidden sm:block' to 'hidden min-[360px]:block' */}
               <span className="hidden min-[360px]:block">SubNScore</span>
             </div>
-
-            {/* TABS: Use smaller padding on mobile */}
             <div className="flex bg-slate-800 rounded-lg p-1 min-w-0">
               <button
                 onClick={() => setView("SETUP")}
@@ -489,8 +441,6 @@ export default function App() {
                 Report
               </button>
             </div>
-
-            {/* LOGOUT: Stays right */}
             <button
               onClick={handleLogout}
               className="text-slate-400 hover:text-red-400 p-1 flex-shrink-0"
@@ -563,6 +513,7 @@ export default function App() {
             quarter={quarter}
             resetGame={resetGame}
             actionHistory={actionHistory}
+            handleSaveGame={handleSaveGame}
           />
         )}
       </main>

@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import { formatTime } from "../utils/helpers";
-import { ClipboardList, Users, Clock, Trash2, Target } from "lucide-react";
+import {
+  ClipboardList,
+  Users,
+  Clock,
+  Trash2,
+  Target,
+  CloudUpload,
+} from "lucide-react";
 
 export default function StatsView({
   roster,
@@ -11,8 +18,10 @@ export default function StatsView({
   quarter,
   resetGame,
   actionHistory = [],
+  handleSaveGame, // Prop passed from App.jsx
 }) {
   const [activeTab, setActiveTab] = useState("boxscore");
+  const [isSaving, setIsSaving] = useState(false);
 
   // --- Calculations ---
   const teamTotalScore = Object.values(playerStats).reduce(
@@ -58,16 +67,22 @@ export default function StatsView({
   const getQuarterStats = (playerId, qtr) => {
     let qPts = 0;
     let qFls = 0;
-    let qTOs = 0; // ADDED: Tracking Turnovers per quarter
+    let qTOs = 0;
 
     actionHistory.forEach((action) => {
       if (action.playerId === playerId && action.quarter === qtr) {
         if (action.type === "score") qPts += action.amount;
         if (action.type === "fouls") qFls += action.amount;
-        if (action.type === "turnovers") qTOs += action.amount; // Catch the turnovers!
+        if (action.type === "turnovers") qTOs += action.amount;
       }
     });
     return { qPts, qFls, qTOs };
+  };
+
+  const onSaveClick = async () => {
+    setIsSaving(true);
+    await handleSaveGame();
+    setIsSaving(false);
   };
 
   const quarterData = getQuarterAppearances();
@@ -185,7 +200,6 @@ export default function StatsView({
                         </span>
                       </td>
                       <td className="p-4 text-center">
-                        {/* ADDED: Turnovers Column */}
                         <span
                           className={`inline-flex items-center justify-center w-10 h-10 rounded-lg font-black text-lg ${stats.turnovers > 0 ? "bg-orange-50 text-orange-600" : "bg-slate-100 text-slate-600"}`}
                         >
@@ -218,7 +232,6 @@ export default function StatsView({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {dynamicQuartersArray.map((q) => {
             const playersInQuarter = quarterData[q] || [];
-
             return (
               <div
                 key={`qtr-${q}`}
@@ -239,9 +252,7 @@ export default function StatsView({
                       {playersInQuarter.map((id) => {
                         const p = roster.find((r) => r.id === id);
                         if (!p) return null;
-
                         const qStats = getQuarterStats(id, q);
-
                         return (
                           <div
                             key={`${q}-${id}`}
@@ -255,7 +266,6 @@ export default function StatsView({
                                 {p.name}
                               </span>
                             </div>
-
                             <div className="flex items-center gap-2 border-l border-slate-200 pl-3 shrink-0">
                               <div className="flex flex-col items-center justify-center">
                                 <span className="text-[8px] font-black text-slate-400 uppercase leading-none">
@@ -265,7 +275,6 @@ export default function StatsView({
                                   {qStats.qPts}
                                 </span>
                               </div>
-                              {/* ADDED: Turnovers in Quarter */}
                               <div className="flex flex-col items-center justify-center ml-1">
                                 <span className="text-[8px] font-black text-slate-400 uppercase leading-none">
                                   TO
@@ -306,13 +315,31 @@ export default function StatsView({
         </div>
       )}
 
-      {/* 5. DANGER ZONE (Reset Game) */}
-      <div className="flex justify-end pt-4 border-t border-slate-200 mt-8">
+      {/* 5. ACTION ZONE (Save & Reset) */}
+      <div className="flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-slate-200 mt-8 gap-4">
         <button
           onClick={resetGame}
-          className="bg-white border-2 border-red-200 hover:bg-red-50 hover:border-red-500 text-red-600 font-black py-3 px-6 rounded-xl shadow-sm transition-all flex items-center gap-2"
+          className="w-full sm:w-auto order-2 sm:order-1 bg-white border-2 border-red-200 hover:bg-red-50 hover:border-red-500 text-red-600 font-black py-3 px-6 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
         >
-          <Trash2 size={18} /> Trash Game & Start Over
+          <Trash2 size={18} /> Trash Game
+        </button>
+
+        <button
+          onClick={onSaveClick}
+          disabled={isSaving}
+          className={`w-full sm:w-auto order-1 sm:order-2 font-black py-3 px-8 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-white ${
+            isSaving
+              ? "bg-slate-400 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 active:scale-95"
+          }`}
+        >
+          {isSaving ? (
+            "Saving..."
+          ) : (
+            <>
+              <CloudUpload size={20} /> Save Game to History
+            </>
+          )}
         </button>
       </div>
     </div>
