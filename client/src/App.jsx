@@ -359,8 +359,12 @@ export default function App() {
   };
 
   const advanceQuarter = () => {
+    // Dynamically format the period name for the pop-up
+    const periodName =
+      quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
+
     const confirmEnd = window.confirm(
-      `Are you sure you want to end Quarter ${quarter}?`,
+      `Are you sure you want to end ${periodName}?`,
     );
     if (!confirmEnd) return;
 

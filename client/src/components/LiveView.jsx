@@ -33,6 +33,13 @@ export default function LiveView({
     0,
   );
 
+  // --- DYNAMIC PERIOD NAMING ---
+  const periodName =
+    quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
+  const shortPeriodName = quarter > 4 ? `OT ${quarter - 4}` : `Q${quarter}`;
+  const nextShortPeriodName =
+    quarter >= 4 ? `OT ${quarter - 3}` : `Q${quarter + 1}`;
+
   return (
     <div className="max-w-6xl mx-auto space-y-4 pb-24 px-2 lg:px-6">
       {/* 1. ADAPTIVE HEADER (Scores & Clock) */}
@@ -57,7 +64,7 @@ export default function LiveView({
               {formatTime(clock)}
             </div>
             <div className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-tighter">
-              Quarter {quarter}
+              {periodName}
             </div>
           </div>
 
@@ -226,7 +233,7 @@ export default function LiveView({
           <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-xl border-l-4 border-red-500">
             <div className="flex justify-between items-center bg-slate-800 p-3 rounded-xl">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                Team Fouls Q{quarter}
+                Team Fouls {shortPeriodName}
               </span>
               <span
                 className={`text-2xl font-black ${teamFouls[quarter] >= 5 ? "text-red-500 animate-pulse" : "text-white"}`}
@@ -257,7 +264,7 @@ export default function LiveView({
             onClick={advanceQuarter}
             className="md:hidden w-full py-4 bg-slate-200 text-slate-800 rounded-xl font-black text-xs uppercase tracking-widest"
           >
-            Advance to Q{quarter + 1}
+            Advance to {nextShortPeriodName}
           </button>
         </div>
       </div>
