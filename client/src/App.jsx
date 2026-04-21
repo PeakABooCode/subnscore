@@ -1,27 +1,32 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Activity, LogOut } from "lucide-react";
+import { Activity, LogOut, History as HistoryIcon } from "lucide-react";
 
-// --- Imports from the new refactored folders ---
+// --- Imports ---
 import AuthView from "./components/AuthView";
 import SetupView from "./components/SetupView";
 import LiveView from "./components/LiveView";
 import StatsView from "./components/StatsView";
+import HistoryView from "./components/HistoryView";
 import { useTimer } from "./hooks/useTimer";
 import { QUARTER_SECONDS } from "./utils/helpers";
 
-// --- Axios Configuration ---
 axios.defaults.withCredentials = true;
 
 export default function App() {
   const { clock, setClock, isRunning, setIsRunning } = useTimer();
 
+  // --- Global App State ---
   const [user, setUser] = useState(null);
-  const [view, setView] = useState("AUTH");
+  const [view, setView] = useState("AUTH"); // AUTH, SETUP, LIVE, STATS, HISTORY
   const [notification, setNotification] = useState(null);
   const [actionHistory, setActionHistory] = useState([]);
   const [pendingSwapId, setPendingSwapId] = useState(null);
 
+  // State to hold a loaded historical game
+  const [historyData, setHistoryData] = useState(null);
+
+  // --- Auth State ---
   const [authMode, setAuthMode] = useState("login");
   const [authForm, setAuthForm] = useState({
     email: "",
@@ -30,18 +35,13 @@ export default function App() {
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  // --- Game State (LocalStorage) ---
   const [teamMeta, setTeamMeta] = useState(() => {
     try {
       const savedMeta = localStorage.getItem("subnscore_teamMeta");
-      const parsed = savedMeta ? JSON.parse(savedMeta) : null;
-      return (
-        parsed || {
-          teamName: "",
-          opponent: "",
-          league: "",
-          season: "Fall 2026",
-        }
-      );
+      return savedMeta
+        ? JSON.parse(savedMeta)
+        : { teamName: "", opponent: "", league: "", season: "Fall 2026" };
     } catch {
       return { teamName: "", opponent: "", league: "", season: "Fall 2026" };
     }
@@ -50,7 +50,7 @@ export default function App() {
   const [roster, setRoster] = useState(() => {
     try {
       const savedRoster = localStorage.getItem("subnscore_roster");
-      const parsed = savedRoster ? JSON.parse(savedRoster) : null;
+      const parsed = JSON.parse(savedRoster);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
@@ -60,8 +60,7 @@ export default function App() {
   const [playerStats, setPlayerStats] = useState(() => {
     try {
       const savedStats = localStorage.getItem("subnscore_playerStats");
-      const parsed = savedStats ? JSON.parse(savedStats) : null;
-      return parsed || {};
+      return JSON.parse(savedStats) || {};
     } catch {
       return {};
     }
@@ -75,6 +74,7 @@ export default function App() {
   const [timeouts, setTimeouts] = useState([]);
   const [setupAttempted, setSetupAttempted] = useState(false);
 
+  // Auto-Savers
   useEffect(() => {
     localStorage.setItem("subnscore_teamMeta", JSON.stringify(teamMeta));
   }, [teamMeta]);
@@ -85,6 +85,7 @@ export default function App() {
     localStorage.setItem("subnscore_playerStats", JSON.stringify(playerStats));
   }, [playerStats]);
 
+  // Session Check
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -105,6 +106,7 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // --- Auth Handlers ---
   const handleLocalAuth = async (e) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -121,10 +123,10 @@ export default function App() {
         const res = await axios.post("/api/auth/register", authForm);
         setUser(res.data.user);
         setView("SETUP");
-        showNotification("Account created successfully!");
+        showNotification("Account created!");
       }
     } catch (err) {
-      showNotification(err.response?.data?.message || "Authentication failed.");
+      showNotification(err.response?.data?.message || "Auth failed.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -132,96 +134,46 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      // 1. Tell the backend to kill the session cookie
       await axios.post("/api/auth/logout");
+
+      // 2. Wipe the browser's LocalStorage "safety net"
+      localStorage.removeItem("subnscore_teamMeta");
+      localStorage.removeItem("subnscore_roster");
+      localStorage.removeItem("subnscore_playerStats");
+
+      // 3. Reset all React states to initial values (Refreshes Setup, Live, and Reports)
       setUser(null);
       setView("AUTH");
+      setTeamMeta({
+        teamName: "",
+        opponent: "",
+        league: "",
+        season: "Fall 2026",
+      });
       setRoster([]);
-      showNotification("Logged out.");
+      setPlayerStats({});
+      setCourt([]);
+      setStints([]);
+      setQuarter(1);
+      setClock(QUARTER_SECONDS);
+      setIsRunning(false);
+      setActionHistory([]);
+      setHistoryData(null);
+      setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+      setTimeouts([]);
+      setSetupAttempted(false);
+      setPendingSwapId(null);
+
+      showNotification("Logged out successfully. Session cleared.");
     } catch (err) {
       showNotification("Error logging out.");
     }
   };
-
-  const resetGame = () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to start a new game? All current stats will be cleared.",
-      )
-    )
-      return;
-    localStorage.removeItem("subnscore_teamMeta");
-    localStorage.removeItem("subnscore_roster");
-    localStorage.removeItem("subnscore_playerStats");
-    setTeamMeta({
-      teamName: "",
-      opponent: "",
-      league: "",
-      season: "Fall 2026",
-    });
-    setRoster([]);
-    setPlayerStats({});
-    setCourt([]);
-    setStints([]);
-    setQuarter(1);
-    setClock(QUARTER_SECONDS);
-    setIsRunning(false);
-    setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
-    setTimeouts([]);
-    setActionHistory([]);
-    setSetupAttempted(false);
-    setView("SETUP");
-    showNotification("New game started. Data cleared!");
-  };
-
-  // --- NEW: SAVE GAME TO BACKEND ---
-  const handleSaveGame = async () => {
-    if (user?.email === "demo@subnscore.com") {
-      showNotification("Demo Mode: Stats cannot be saved to the database.");
-      return;
-    }
-
-    const teamScore = Object.values(playerStats).reduce(
-      (acc, curr) => acc + (curr.score || 0),
-      0,
-    );
-    const oppScore = window.prompt(
-      `Enter final score for ${teamMeta.opponent}:`,
-      "0",
-    );
-    if (oppScore === null) return; // User cancelled
-
-    try {
-      const payload = {
-        teamMeta,
-        roster,
-        playerStats,
-        actionHistory,
-        timeouts,
-        finalScoreUs: teamScore,
-        finalScoreThem: parseInt(oppScore) || 0,
-      };
-
-      await axios.post("/api/games/save", payload);
-      showNotification("Game successfully saved to cloud!");
-    } catch (err) {
-      console.error(err);
-      showNotification("Error saving game. Check your connection.");
-    }
-  };
-
-  const handleDemoLogin = () => {
-    setUser({ name: "Guest Coach", email: "demo@subnscore.com" });
-    setView("SETUP");
-    showNotification("Demo Mode Active: Stats won't be saved to DB.");
-  };
-
+  // --- Game Setup Handlers ---
   const handleAddPlayer = (e) => {
     e.preventDefault();
     if (!newPlayer.name || !newPlayer.jersey) return;
-    if (roster.some((p) => p.jersey === newPlayer.jersey)) {
-      showNotification(`Jersey #${newPlayer.jersey} is already taken!`);
-      return;
-    }
     const id = Date.now().toString();
     setRoster([...roster, { ...newPlayer, id }]);
     setPlayerStats({
@@ -231,27 +183,16 @@ export default function App() {
     setNewPlayer({ name: "", jersey: "" });
   };
 
-  const handleRemovePlayer = (id) => {
-    setRoster(roster.filter((p) => p.id !== id));
-    const newStats = { ...playerStats };
-    delete newStats[id];
-    setPlayerStats(newStats);
-  };
-
   const handleEditPlayer = (id, newName) => {
     setRoster(roster.map((p) => (p.id === id ? { ...p, name: newName } : p)));
   };
 
   const startGame = () => {
     setSetupAttempted(true);
-    if (!teamMeta.teamName.trim() || !teamMeta.opponent.trim()) {
-      showNotification("Please enter both Team Name and Opponent.");
-      return;
-    }
-    if (roster.length < 5) {
-      showNotification("Add at least 5 players.");
-      return;
-    }
+    if (!teamMeta.teamName || !teamMeta.opponent)
+      return showNotification("Check team info!");
+    if (roster.length < 5) return showNotification("Need 5 players.");
+
     const starters = roster.slice(0, 5).map((p) => p.id);
     setCourt(starters);
     setStints(
@@ -263,49 +204,48 @@ export default function App() {
         clockOut: null,
       })),
     );
+    setHistoryData(null);
     setView("LIVE");
   };
 
-  const subOut = (playerId) => {
-    if (isRunning) return alert("Clock must be PAUSED to make substitutions.");
-    setStints((prev) =>
-      prev.map((s) =>
-        s.playerId === playerId && s.clockOut === null
-          ? { ...s, clockOut: clock }
-          : s,
-      ),
-    );
-    setCourt((prev) => prev.filter((id) => id !== playerId));
-    setActionHistory((prev) => [
-      ...prev,
-      { type: "SUB_OUT", playerId, clock, quarter },
-    ]);
+  const resetGame = () => {
+    if (!window.confirm("Start new game? This clears current live stats."))
+      return;
+    setPlayerStats({});
+    setCourt([]);
+    setStints([]);
+    setQuarter(1);
+    setClock(QUARTER_SECONDS);
+    setIsRunning(false);
+    setActionHistory([]);
+    setHistoryData(null);
+    setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
+    setView("SETUP");
   };
 
-  const subIn = (playerId) => {
-    if (isRunning) return alert("Clock must be PAUSED to make substitutions.");
-    if (court.length >= 5) return alert("Only 5 players allowed on court.");
-    setStints((prev) => [
-      ...prev,
-      { playerId, quarter, clockIn: clock, clockOut: null },
-    ]);
-    setCourt((prev) => [...prev, playerId]);
-    setActionHistory((prev) => [
-      ...prev,
-      { type: "SUB_IN", playerId, clock, quarter },
-    ]);
-  };
-
+  // --- Live Action Handlers ---
   const handleSwap = (playerId) => {
-    if (isRunning)
-      return showNotification("Pause the clock to make substitutions!");
-    if (!pendingSwapId) return setPendingSwapId(playerId);
-    if (pendingSwapId === playerId) return setPendingSwapId(null);
+    if (isRunning) return showNotification("Pause clock to sub!");
+    if (!pendingSwapId) {
+      setPendingSwapId(playerId);
+      return;
+    }
+    if (pendingSwapId === playerId) {
+      setPendingSwapId(null);
+      return;
+    }
+
     const firstOn = court.includes(pendingSwapId);
     const secondOn = court.includes(playerId);
-    if (firstOn === secondOn) return setPendingSwapId(playerId);
+
+    if (firstOn === secondOn) {
+      setPendingSwapId(playerId);
+      return;
+    }
+
     const pOut = firstOn ? pendingSwapId : playerId;
     const pIn = firstOn ? playerId : pendingSwapId;
+
     setStints((prev) =>
       prev.map((s) =>
         s.playerId === pOut && s.clockOut === null
@@ -318,39 +258,14 @@ export default function App() {
       { playerId: pIn, quarter, clockIn: clock, clockOut: null },
     ]);
     setCourt((prev) => [...prev.filter((id) => id !== pOut), pIn]);
-    setPendingSwapId(null);
-    showNotification("Substitution successful!");
-  };
-
-  const addTimeout = () => {
-    if (isRunning) return alert("Pause the clock to record a Timeout.");
-    setTimeouts([...timeouts, { quarter, time: clock }]);
-  };
-
-  const advanceQuarter = () => {
-    const pName =
-      quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
-    if (!window.confirm(`Are you sure you want to end ${pName}?`)) return;
-    const updatedStints = stints.map((s) =>
-      s.clockOut === null ? { ...s, clockOut: clock } : s,
-    );
-    const nextQ = quarter + 1;
-    setStints([
-      ...updatedStints,
-      ...court.map((id) => ({
-        id: Math.random().toString(),
-        playerId: id,
-        quarter: nextQ,
-        clockIn: QUARTER_SECONDS,
-        clockOut: null,
-      })),
+    setActionHistory((prev) => [
+      ...prev,
+      { type: "SUB_IN", playerId: pIn, clock, quarter },
+      { type: "SUB_OUT", playerId: pOut, clock, quarter },
     ]);
-    setQuarter(nextQ);
-    setClock(QUARTER_SECONDS);
-    setIsRunning(false);
-    showNotification(
-      `${nextQ > 4 ? "OT " + (nextQ - 4) : "Quarter " + nextQ} started.`,
-    );
+
+    setPendingSwapId(null);
+    showNotification("Subbed!");
   };
 
   const addStat = (playerId, type, amount) => {
@@ -361,13 +276,13 @@ export default function App() {
         [type]: (prev[playerId][type] || 0) + amount,
       },
     }));
+
     if (type === "fouls") {
       setTeamFouls((prev) => ({
         ...prev,
         [quarter]: (prev[quarter] || 0) + 1,
       }));
       setIsRunning(false);
-      showNotification("Foul called: Clock stopped.");
     }
     setActionHistory((prev) => [
       ...prev,
@@ -379,6 +294,7 @@ export default function App() {
     if (actionHistory.length === 0) return;
     const historyCopy = [...actionHistory];
     const lastAction = historyCopy.pop();
+
     setPlayerStats((prev) => ({
       ...prev,
       [lastAction.playerId]: {
@@ -389,20 +305,120 @@ export default function App() {
         ),
       },
     }));
+
     if (lastAction.type === "fouls") {
       setTeamFouls((prev) => ({
         ...prev,
-        [lastAction.quarter]: Math.max(0, (prev[lastAction.quarter] || 0) - 1),
+        [lastAction.quarter]: Math.max(0, prev[lastAction.quarter] - 1),
       }));
     }
     setActionHistory(historyCopy);
-    showNotification("Last action undone.");
+    showNotification("Undo successful.");
+  };
+
+  const advanceQuarter = () => {
+    const pName =
+      quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
+    if (!window.confirm(`End ${pName}?`)) return;
+
+    const updatedStints = stints.map((s) =>
+      s.clockOut === null ? { ...s, clockOut: clock } : s,
+    );
+    const nextQ = quarter + 1;
+
+    setStints([
+      ...updatedStints,
+      ...court.map((id) => ({
+        id: Math.random().toString(),
+        playerId: id,
+        quarter: nextQ,
+        clockIn: QUARTER_SECONDS,
+        clockOut: null,
+      })),
+    ]);
+
+    setQuarter(nextQ);
+    setClock(QUARTER_SECONDS);
+    setIsRunning(false);
+  };
+
+  // --- Backend Integration Handlers ---
+  const handleSaveGame = async () => {
+    if (user?.email === "demo@subnscore.com")
+      return showNotification("Demo Mode: Cannot save.");
+    const teamScore = Object.values(playerStats).reduce(
+      (acc, curr) => acc + (curr.score || 0),
+      0,
+    );
+    const oppScore = window.prompt(
+      `Enter final score for ${teamMeta.opponent}:`,
+      "0",
+    );
+    if (oppScore === null) return;
+
+    try {
+      const payload = {
+        teamMeta,
+        roster,
+        playerStats,
+        actionHistory,
+        timeouts,
+        finalScoreUs: teamScore,
+        finalScoreThem: parseInt(oppScore) || 0,
+      };
+      await axios.post("/api/games/save", payload);
+      showNotification("Game saved to cloud!");
+
+      // Optional: Clear the screen automatically after saving so they can start the next game
+      resetGame();
+    } catch (err) {
+      showNotification("Save failed.");
+    }
+  };
+
+  const loadGameFromHistory = async (gameId) => {
+    try {
+      const res = await axios.get(`/api/games/${gameId}`);
+      const { game, stats, logs } = res.data;
+
+      const historicalRoster = stats.map((s) => ({
+        id: s.player_id,
+        name: s.name,
+        jersey: s.jersey_number,
+      }));
+      const historicalStats = {};
+      stats.forEach((s) => {
+        historicalStats[s.player_id] = {
+          score: s.points,
+          fouls: s.fouls,
+          turnovers: s.turnovers,
+        };
+      });
+      const historicalActions = logs.map((l) => ({
+        playerId: l.player_id,
+        type: l.action_type,
+        amount: l.amount,
+        quarter: l.quarter,
+        clock: l.time_remaining,
+      }));
+
+      setHistoryData({
+        meta: { ...game, teamName: game.team_name || teamMeta.teamName },
+        roster: historicalRoster,
+        stats: historicalStats,
+        actions: historicalActions,
+        quarter: Math.max(...logs.map((l) => l.quarter), 4),
+      });
+      setView("STATS");
+    } catch (err) {
+      showNotification("Error loading game.");
+    }
   };
 
   if (isAuthLoading)
     return (
       <div className="min-h-screen flex items-center justify-center">
-        Loading SubNScore...
+        Loading...
       </div>
     );
 
@@ -417,34 +433,45 @@ export default function App() {
       {user && (
         <nav className="bg-slate-900 text-white shadow-md sticky top-0 z-40">
           <div className="max-w-7xl mx-auto px-2 sm:px-4 h-16 flex items-center justify-between gap-2">
-            <div className="font-bold text-lg flex items-center gap-2 flex-shrink-0">
+            <div className="font-bold text-lg flex items-center gap-2">
               <Activity className="text-amber-400" />
-              <span className="hidden min-[360px]:block">SubNScore</span>
+              <span className="hidden min-[400px]:block">SubNScore</span>
             </div>
-            <div className="flex bg-slate-800 rounded-lg p-1 min-w-0">
+            <div className="flex bg-slate-800 rounded-lg p-1">
               <button
-                onClick={() => setView("SETUP")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm transition-colors ${view === "SETUP" ? "bg-white text-slate-900" : "text-slate-300 hover:text-white"}`}
+                onClick={() => {
+                  setView("SETUP");
+                  setHistoryData(null);
+                }}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "SETUP" ? "bg-white text-slate-900" : "text-slate-300"}`}
               >
                 Setup
               </button>
               <button
-                onClick={() => setView("LIVE")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm transition-colors ${view === "LIVE" ? "bg-white text-slate-900" : "text-slate-300 hover:text-white"}`}
+                onClick={() => {
+                  setView("LIVE");
+                  setHistoryData(null);
+                }}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "LIVE" ? "bg-white text-slate-900" : "text-slate-300"}`}
               >
                 Live
               </button>
               <button
                 onClick={() => setView("STATS")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm transition-colors ${view === "STATS" ? "bg-white text-slate-900" : "text-slate-300 hover:text-white"}`}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "STATS" ? "bg-white text-slate-900" : "text-slate-300"}`}
               >
                 Report
+              </button>
+              <button
+                onClick={() => setView("HISTORY")}
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm ${view === "HISTORY" ? "bg-white text-slate-900" : "text-slate-300"}`}
+              >
+                History
               </button>
             </div>
             <button
               onClick={handleLogout}
-              className="text-slate-400 hover:text-red-400 p-1 flex-shrink-0"
-              title="Logout"
+              className="text-slate-400 hover:text-red-400"
             >
               <LogOut size={20} />
             </button>
@@ -460,9 +487,16 @@ export default function App() {
             authForm={authForm}
             setAuthForm={setAuthForm}
             handleLocalAuth={handleLocalAuth}
-            handleDemoLogin={handleDemoLogin}
+            handleDemoLogin={() =>
+              setUser({ name: "Demo", email: "demo@subnscore.com" })
+            }
           />
         )}
+
+        {user && view === "HISTORY" && (
+          <HistoryView onViewGame={loadGameFromHistory} />
+        )}
+
         {user && view === "SETUP" && (
           <SetupView
             user={user}
@@ -472,13 +506,16 @@ export default function App() {
             newPlayer={newPlayer}
             setNewPlayer={setNewPlayer}
             handleAddPlayer={handleAddPlayer}
-            handleRemovePlayer={handleRemovePlayer}
+            handleRemovePlayer={(id) =>
+              setRoster(roster.filter((p) => p.id !== id))
+            }
             handleEditPlayer={handleEditPlayer}
             startGame={startGame}
             setupAttempted={setupAttempted}
             resetGame={resetGame}
           />
         )}
+
         {user && view === "LIVE" && (
           <LiveView
             court={court}
@@ -489,31 +526,32 @@ export default function App() {
             setIsRunning={setIsRunning}
             quarter={quarter}
             advanceQuarter={advanceQuarter}
-            subOut={subOut}
-            subIn={subIn}
             addStat={addStat}
             teamFouls={teamFouls}
-            setTimeouts={setTimeouts}
             timeouts={timeouts}
-            addTimeout={addTimeout}
+            addTimeout={() => {
+              setTimeouts([...timeouts, { quarter, clock }]);
+              setIsRunning(false);
+            }}
             undoLastAction={undoLastAction}
-            actionHistory={actionHistory}
             teamMeta={teamMeta}
             handleSwap={handleSwap}
             pendingSwapId={pendingSwapId}
           />
         )}
+
         {user && view === "STATS" && (
           <StatsView
-            roster={roster}
-            playerStats={playerStats}
-            stints={stints}
-            clock={clock}
-            teamMeta={teamMeta}
-            quarter={quarter}
+            roster={historyData ? historyData.roster : roster}
+            playerStats={historyData ? historyData.stats : playerStats}
+            stints={historyData ? [] : stints}
+            clock={historyData ? 0 : clock}
+            teamMeta={historyData ? historyData.meta : teamMeta}
+            quarter={historyData ? historyData.quarter : quarter}
+            actionHistory={historyData ? historyData.actions : actionHistory}
             resetGame={resetGame}
-            actionHistory={actionHistory}
             handleSaveGame={handleSaveGame}
+            isHistory={!!historyData}
           />
         )}
       </main>

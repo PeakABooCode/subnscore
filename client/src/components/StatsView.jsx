@@ -18,7 +18,8 @@ export default function StatsView({
   quarter,
   resetGame,
   actionHistory = [],
-  handleSaveGame, // Prop passed from App.jsx
+  handleSaveGame,
+  isHistory, // NEW: Prop to detect if we are viewing a past game
 }) {
   const [activeTab, setActiveTab] = useState("boxscore");
   const [isSaving, setIsSaving] = useState(false);
@@ -38,6 +39,9 @@ export default function StatsView({
   );
 
   const calculateMins = (pId) => {
+    // If it's a historical game, stints might be empty, so we return N/A or 0
+    if (isHistory || !stints) return "N/A";
+
     let total = 0;
     stints
       .filter((s) => s.playerId === pId)
@@ -55,12 +59,22 @@ export default function StatsView({
       quarters[i] = [];
     }
 
-    stints.forEach((stint) => {
-      if (!quarters[stint.quarter]) quarters[stint.quarter] = [];
-      if (!quarters[stint.quarter].includes(stint.playerId)) {
-        quarters[stint.quarter].push(stint.playerId);
-      }
-    });
+    // If viewing history, we can derive appearances from action logs
+    if (isHistory) {
+      actionHistory.forEach((action) => {
+        if (!quarters[action.quarter]) quarters[action.quarter] = [];
+        if (!quarters[action.quarter].includes(action.playerId)) {
+          quarters[action.quarter].push(action.playerId);
+        }
+      });
+    } else {
+      stints.forEach((stint) => {
+        if (!quarters[stint.quarter]) quarters[stint.quarter] = [];
+        if (!quarters[stint.quarter].includes(stint.playerId)) {
+          quarters[stint.quarter].push(stint.playerId);
+        }
+      });
+    }
     return quarters;
   };
 
@@ -94,7 +108,8 @@ export default function StatsView({
       <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-xl border-b-4 border-amber-500 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="text-center md:text-left">
           <h2 className="text-2xl md:text-3xl font-black text-amber-400 uppercase tracking-tighter">
-            {teamMeta?.teamName || "Team"} Final Report
+            {teamMeta?.teamName || "Team"}{" "}
+            {isHistory ? "Archive" : "Final Report"}
           </h2>
           <p className="text-xs md:text-sm text-slate-400 font-bold uppercase tracking-widest mt-1">
             {teamMeta?.league} • {teamMeta?.season}
@@ -304,7 +319,7 @@ export default function StatsView({
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 py-6 opacity-50">
                       <Target size={24} className="mb-2" />
                       <p className="text-xs font-bold uppercase tracking-widest text-center">
-                        No Subs Recorded
+                        No Activity Recorded
                       </p>
                     </div>
                   )}
@@ -321,26 +336,29 @@ export default function StatsView({
           onClick={resetGame}
           className="w-full sm:w-auto order-2 sm:order-1 bg-white border-2 border-red-200 hover:bg-red-50 hover:border-red-500 text-red-600 font-black py-3 px-6 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
         >
-          <Trash2 size={18} /> Trash Game
+          <Trash2 size={18} /> {isHistory ? "Close View" : "Trash Game"}
         </button>
 
-        <button
-          onClick={onSaveClick}
-          disabled={isSaving}
-          className={`w-full sm:w-auto order-1 sm:order-2 font-black py-3 px-8 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-white ${
-            isSaving
-              ? "bg-slate-400 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700 active:scale-95"
-          }`}
-        >
-          {isSaving ? (
-            "Saving..."
-          ) : (
-            <>
-              <CloudUpload size={20} /> Save Game to History
-            </>
-          )}
-        </button>
+        {/* Hide Save button if we are viewing an archived game */}
+        {!isHistory && (
+          <button
+            onClick={onSaveClick}
+            disabled={isSaving}
+            className={`w-full sm:w-auto order-1 sm:order-2 font-black py-3 px-8 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-white ${
+              isSaving
+                ? "bg-slate-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700 active:scale-95"
+            }`}
+          >
+            {isSaving ? (
+              "Saving..."
+            ) : (
+              <>
+                <CloudUpload size={20} /> Save Game to History
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

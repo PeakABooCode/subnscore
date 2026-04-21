@@ -79,3 +79,52 @@ export const saveGameSession = async (req, res) => {
     res.status(500).json({ error: "Failed to save game data." });
   }
 };
+
+// server/controllers/gameController.js
+
+// 1. Get all games for the logged-in coach
+export const getGames = async (req, res) => {
+  const coachId = req.user.id;
+  try {
+    const result = await pool.query(
+      `SELECT g.*, t.name as team_name 
+       FROM games g 
+       JOIN teams t ON g.team_id = t.id 
+       WHERE t.coach_id = $1 
+       ORDER BY g.game_date DESC`,
+      [coachId],
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch games history" });
+  }
+};
+
+// 2. Get full details of a specific game to rebuild the report
+export const getGameDetails = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const gameMeta = await pool.query(`SELECT * FROM games WHERE id = $1`, [
+      id,
+    ]);
+    const stats = await pool.query(
+      `SELECT gs.*, p.name, p.jersey_number 
+       FROM game_stats gs 
+       JOIN players p ON gs.player_id = p.id 
+       WHERE gs.game_id = $1`,
+      [id],
+    );
+    const logs = await pool.query(
+      `SELECT * FROM action_logs WHERE game_id = $1 ORDER BY id ASC`,
+      [id],
+    );
+
+    res.json({
+      game: gameMeta.rows[0],
+      stats: stats.rows,
+      logs: logs.rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load game details" });
+  }
+};
