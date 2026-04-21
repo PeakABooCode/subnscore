@@ -553,6 +553,7 @@ export default function App() {
             teamMeta={teamMeta}
             quarter={quarter}
             resetGame={resetGame}
+            actionHistory={actionHistory}
           />
         )}
       </main>
