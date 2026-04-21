@@ -8,7 +8,7 @@ export default function StatsView({
   stints,
   clock,
   teamMeta,
-  quarter, // We use this to know exactly how many quarters/OTs there are!
+  quarter,
   resetGame,
   actionHistory = [],
 }) {
@@ -21,6 +21,10 @@ export default function StatsView({
   );
   const teamTotalFouls = Object.values(playerStats).reduce(
     (acc, curr) => acc + (curr.fouls || 0),
+    0,
+  );
+  const teamTotalTurnovers = Object.values(playerStats).reduce(
+    (acc, curr) => acc + (curr.turnovers || 0),
     0,
   );
 
@@ -36,18 +40,14 @@ export default function StatsView({
     return formatTime(total);
   };
 
-  // UPDATED: Dynamically generate the quarters object instead of hardcoding 1, 2, 3, 4
   const getQuarterAppearances = () => {
     const quarters = {};
-    // Pre-fill arrays for every quarter up to the current one
     for (let i = 1; i <= quarter; i++) {
       quarters[i] = [];
     }
 
     stints.forEach((stint) => {
-      // Safety catch in case a stint exists outside the normal range
       if (!quarters[stint.quarter]) quarters[stint.quarter] = [];
-
       if (!quarters[stint.quarter].includes(stint.playerId)) {
         quarters[stint.quarter].push(stint.playerId);
       }
@@ -58,17 +58,19 @@ export default function StatsView({
   const getQuarterStats = (playerId, qtr) => {
     let qPts = 0;
     let qFls = 0;
+    let qTOs = 0; // ADDED: Tracking Turnovers per quarter
+
     actionHistory.forEach((action) => {
       if (action.playerId === playerId && action.quarter === qtr) {
         if (action.type === "score") qPts += action.amount;
         if (action.type === "fouls") qFls += action.amount;
+        if (action.type === "turnovers") qTOs += action.amount; // Catch the turnovers!
       }
     });
-    return { qPts, qFls };
+    return { qPts, qFls, qTOs };
   };
 
   const quarterData = getQuarterAppearances();
-  // UPDATED: Create a dynamic array for mapping [1, 2, 3, 4, 5...] based on current quarter
   const dynamicQuartersArray = Array.from({ length: quarter }, (_, i) => i + 1);
 
   return (
@@ -84,20 +86,28 @@ export default function StatsView({
           </p>
         </div>
 
-        <div className="flex gap-3">
-          <div className="bg-slate-800 px-5 py-2 rounded-xl border border-slate-700 flex flex-col items-center">
-            <span className="text-[10px] text-slate-400 font-black uppercase">
-              Total Pts
+        <div className="flex gap-2 sm:gap-3">
+          <div className="bg-slate-800 px-3 py-2 sm:px-5 sm:py-2 rounded-xl border border-slate-700 flex flex-col items-center">
+            <span className="text-[8px] sm:text-[10px] text-slate-400 font-black uppercase">
+              Pts
             </span>
-            <span className="text-2xl font-black text-white">
+            <span className="text-xl sm:text-2xl font-black text-white">
               {teamTotalScore}
             </span>
           </div>
-          <div className="bg-slate-800 px-5 py-2 rounded-xl border border-slate-700 flex flex-col items-center">
-            <span className="text-[10px] text-slate-400 font-black uppercase">
-              Total Fouls
+          <div className="bg-slate-800 px-3 py-2 sm:px-5 sm:py-2 rounded-xl border border-slate-700 flex flex-col items-center">
+            <span className="text-[8px] sm:text-[10px] text-slate-400 font-black uppercase">
+              TOs
             </span>
-            <span className="text-2xl font-black text-red-400">
+            <span className="text-xl sm:text-2xl font-black text-orange-400">
+              {teamTotalTurnovers}
+            </span>
+          </div>
+          <div className="bg-slate-800 px-3 py-2 sm:px-5 sm:py-2 rounded-xl border border-slate-700 flex flex-col items-center">
+            <span className="text-[8px] sm:text-[10px] text-slate-400 font-black uppercase">
+              Fls
+            </span>
+            <span className="text-xl sm:text-2xl font-black text-red-400">
               {teamTotalFouls}
             </span>
           </div>
@@ -139,18 +149,23 @@ export default function StatsView({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[500px]">
+            <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 text-[10px] sm:text-xs uppercase tracking-widest">
                   <th className="p-4 font-black">Player</th>
                   <th className="p-4 font-black text-center">PTS</th>
+                  <th className="p-4 font-black text-center">TO</th>
                   <th className="p-4 font-black text-center">FLS</th>
                   <th className="p-4 font-black text-center">Total Min</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {roster.map((p) => {
-                  const stats = playerStats[p.id] || { score: 0, fouls: 0 };
+                  const stats = playerStats[p.id] || {
+                    score: 0,
+                    fouls: 0,
+                    turnovers: 0,
+                  };
                   return (
                     <tr
                       key={p.id}
@@ -167,6 +182,14 @@ export default function StatsView({
                       <td className="p-4 text-center">
                         <span className="inline-flex items-center justify-center bg-blue-50 text-blue-700 w-10 h-10 rounded-lg font-black text-lg">
                           {stats.score}
+                        </span>
+                      </td>
+                      <td className="p-4 text-center">
+                        {/* ADDED: Turnovers Column */}
+                        <span
+                          className={`inline-flex items-center justify-center w-10 h-10 rounded-lg font-black text-lg ${stats.turnovers > 0 ? "bg-orange-50 text-orange-600" : "bg-slate-100 text-slate-600"}`}
+                        >
+                          {stats.turnovers || 0}
                         </span>
                       </td>
                       <td className="p-4 text-center">
@@ -193,7 +216,6 @@ export default function StatsView({
       {/* 4. TAB 2: QUARTER BREAKDOWN */}
       {activeTab === "quarters" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* UPDATED: We use dynamicQuartersArray instead of hardcoded [1,2,3,4] */}
           {dynamicQuartersArray.map((q) => {
             const playersInQuarter = quarterData[q] || [];
 
@@ -218,7 +240,6 @@ export default function StatsView({
                         const p = roster.find((r) => r.id === id);
                         if (!p) return null;
 
-                        // Grab the specific stats for this quarter
                         const qStats = getQuarterStats(id, q);
 
                         return (
@@ -242,6 +263,17 @@ export default function StatsView({
                                 </span>
                                 <span className="text-sm font-black text-slate-700 leading-none mt-0.5">
                                   {qStats.qPts}
+                                </span>
+                              </div>
+                              {/* ADDED: Turnovers in Quarter */}
+                              <div className="flex flex-col items-center justify-center ml-1">
+                                <span className="text-[8px] font-black text-slate-400 uppercase leading-none">
+                                  TO
+                                </span>
+                                <span
+                                  className={`text-sm font-black leading-none mt-0.5 ${qStats.qTOs > 0 ? "text-orange-500" : "text-slate-700"}`}
+                                >
+                                  {qStats.qTOs}
                                 </span>
                               </div>
                               <div className="flex flex-col items-center justify-center ml-1">

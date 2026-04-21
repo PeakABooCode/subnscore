@@ -109,7 +109,12 @@ export default function LiveView({
 
           {court.map((id) => {
             const p = roster.find((r) => r.id === id);
-            const stats = playerStats[id] || { score: 0, fouls: 0 };
+            // Default turnovers to 0 if they don't have any yet
+            const stats = playerStats[id] || {
+              score: 0,
+              fouls: 0,
+              turnovers: 0,
+            };
             const isSelected = pendingSwapId === id;
 
             return (
@@ -135,25 +140,42 @@ export default function LiveView({
                     </span>
                   </div>
 
-                  {/* Foul Display/Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      addStat(id, "fouls", 1);
-                    }}
-                    className={`h-12 w-16 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${
-                      stats.fouls >= 4
-                        ? "bg-red-600 border-red-600 text-white"
-                        : "bg-red-50 border-red-100 text-red-600 hover:bg-red-100"
-                    }`}
-                  >
-                    <span className="text-[8px] font-black uppercase leading-none">
-                      Fouls
-                    </span>
-                    <span className="font-black text-xl leading-none">
-                      {stats.fouls}
-                    </span>
-                  </button>
+                  {/* Negatives Display/Buttons (Turnovers & Fouls) */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addStat(id, "turnovers", 1);
+                      }}
+                      className="h-12 w-16 rounded-xl border-2 flex flex-col items-center justify-center transition-all bg-orange-50 border-orange-100 text-orange-600 hover:bg-orange-100"
+                    >
+                      <span className="text-[8px] font-black uppercase leading-none">
+                        TO
+                      </span>
+                      <span className="font-black text-xl leading-none">
+                        {stats.turnovers || 0}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addStat(id, "fouls", 1);
+                      }}
+                      className={`h-12 w-16 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${
+                        stats.fouls >= 4
+                          ? "bg-red-600 border-red-600 text-white"
+                          : "bg-red-50 border-red-100 text-red-600 hover:bg-red-100"
+                      }`}
+                    >
+                      <span className="text-[8px] font-black uppercase leading-none">
+                        Fouls
+                      </span>
+                      <span className="font-black text-xl leading-none">
+                        {stats.fouls}
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Scoring Interaction Row */}
@@ -198,7 +220,11 @@ export default function LiveView({
                 .filter((p) => !court.includes(p.id))
                 .map((p) => {
                   const isSelected = pendingSwapId === p.id;
-                  const stats = playerStats[p.id] || { score: 0, fouls: 0 };
+                  const stats = playerStats[p.id] || {
+                    score: 0,
+                    fouls: 0,
+                    turnovers: 0,
+                  };
                   return (
                     <button
                       key={p.id}
@@ -215,12 +241,15 @@ export default function LiveView({
                       </div>
                       <div className="flex justify-between mt-2 border-t pt-2 border-slate-100">
                         <span className="text-[10px] font-bold text-slate-500">
-                          Score: {stats.score}
+                          Pts: {stats.score}
+                        </span>
+                        <span className="text-[10px] font-bold text-orange-500">
+                          TO: {stats.turnovers || 0}
                         </span>
                         <span
                           className={`text-[10px] font-bold ${stats.fouls >= 4 ? "text-red-600" : "text-slate-500"}`}
                         >
-                          Fouls: {stats.fouls}
+                          Fls: {stats.fouls}
                         </span>
                       </div>
                     </button>
