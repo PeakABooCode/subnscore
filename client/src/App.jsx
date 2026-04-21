@@ -269,13 +269,22 @@ export default function App() {
   };
 
   const addStat = (playerId, type, amount) => {
-    setPlayerStats((prev) => ({
-      ...prev,
-      [playerId]: {
-        ...prev[playerId],
-        [type]: (prev[playerId][type] || 0) + amount,
-      },
-    }));
+    setPlayerStats((prev) => {
+      // Safety Check: If this player doesn't exist in stats yet, create them on the fly
+      const currentPlayerStats = prev[playerId] || {
+        score: 0,
+        fouls: 0,
+        turnovers: 0,
+      };
+
+      return {
+        ...prev,
+        [playerId]: {
+          ...currentPlayerStats,
+          [type]: (currentPlayerStats[type] || 0) + amount,
+        },
+      };
+    });
 
     if (type === "fouls") {
       setTeamFouls((prev) => ({
@@ -346,10 +355,11 @@ export default function App() {
   const handleSaveGame = async () => {
     if (user?.email === "demo@subnscore.com")
       return showNotification("Demo Mode: Cannot save.");
-    const teamScore = Object.values(playerStats).reduce(
-      (acc, curr) => acc + (curr.score || 0),
-      0,
-    );
+    // ADDED SAFETY: filter out any undefined/null entries before reducing
+    const teamScore = Object.values(playerStats).reduce((acc, curr) => {
+      if (!curr) return acc; // Skip if entry is missing
+      return acc + (curr.score || 0);
+    }, 0);
     const oppScore = window.prompt(
       `Enter final score for ${teamMeta.opponent}:`,
       "0",

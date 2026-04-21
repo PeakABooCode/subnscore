@@ -5,7 +5,17 @@
 import pool from "../config/db.js";
 
 export const saveGameSession = async (req, res) => {
-  const { teamMeta, roster, playerStats, actionHistory, timeouts } = req.body;
+  // UPDATED: Destructured finalScoreUs and finalScoreThem from the body
+  const {
+    teamMeta,
+    roster,
+    playerStats,
+    actionHistory,
+    timeouts,
+    finalScoreUs,
+    finalScoreThem,
+  } = req.body;
+
   const coachId = req.user.id;
 
   try {
@@ -22,10 +32,11 @@ export const saveGameSession = async (req, res) => {
     const teamId = teamResult.rows[0].id;
 
     // 2. Insert the Game record
+    // UPDATED: Added final_score_us and final_score_them columns and placeholders ($3, $4)
     const gameResult = await pool.query(
-      `INSERT INTO games (team_id, opponent_name) 
-       VALUES ($1, $2) RETURNING id`,
-      [teamId, teamMeta.opponent],
+      `INSERT INTO games (team_id, opponent_name, final_score_us, final_score_them) 
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [teamId, teamMeta.opponent, finalScoreUs || 0, finalScoreThem || 0],
     );
     const gameId = gameResult.rows[0].id;
 
@@ -79,8 +90,6 @@ export const saveGameSession = async (req, res) => {
     res.status(500).json({ error: "Failed to save game data." });
   }
 };
-
-// server/controllers/gameController.js
 
 // 1. Get all games for the logged-in coach
 export const getGames = async (req, res) => {

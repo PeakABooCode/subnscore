@@ -55,12 +55,12 @@ export default function AuthView({
           </button>
         </form>
 
-        {/* DEMO BUTTON */}
+        {/* --- DISABLED DEMO BUTTON --- */}
         <button
-          onClick={handleDemoLogin}
-          className="w-full mt-4 bg-emerald-600 text-white py-2 rounded font-bold hover:bg-emerald-700 transition-colors"
+          disabled
+          className="w-full mt-4 bg-slate-100 text-slate-400 py-2 rounded font-bold cursor-not-allowed border border-slate-200"
         >
-          Try Demo (No Login Required)
+          Demo Mode (Under Maintenance)
         </button>
 
         <button
