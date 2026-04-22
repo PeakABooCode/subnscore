@@ -192,7 +192,9 @@ export default function App() {
         }
       } catch (err) {
         setUser(null);
-        setView("AUTH");
+        if (err.response?.status === 401) {
+          setView("AUTH");
+        }
       } finally {
         setIsAuthLoading(false);
       }
@@ -604,7 +606,12 @@ export default function App() {
       // Pass 'true' to force reset everything (including textboxes) without a second prompt
       resetGame(true);
     } catch (err) {
-      showNotification("Save failed.");
+      console.error("Save Error:", err.response);
+      const msg =
+        err.response?.status === 429
+          ? "Slow down, Coach! Too many save attempts. Try again in a minute."
+          : "Save failed. Please check your connection.";
+      showNotification(msg);
     }
   };
 
@@ -672,8 +679,21 @@ export default function App() {
 
   if (isAuthLoading)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500 font-bold">
-        Initializing Courtside...
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="relative mb-6">
+          {/* Bouncing Basketball */}
+          <div className="w-16 h-16 bg-amber-500 rounded-full border-4 border-slate-900 shadow-xl animate-bounce flex items-center justify-center overflow-hidden">
+            <Activity className="text-white opacity-40" size={32} />
+            {/* Subtle seam lines for the ball effect */}
+            <div className="absolute w-full h-0.5 bg-slate-900/10 rotate-45"></div>
+            <div className="absolute w-full h-0.5 bg-slate-900/10 -rotate-45"></div>
+          </div>
+          {/* Ground Shadow */}
+          <div className="w-12 h-1.5 bg-slate-200 rounded-[100%] mx-auto blur-sm animate-pulse"></div>
+        </div>
+        <div className="text-slate-900 font-black uppercase tracking-[0.3em] text-[10px] animate-pulse">
+          Initializing Courtside
+        </div>
       </div>
     );
 

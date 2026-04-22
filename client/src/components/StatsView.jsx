@@ -7,6 +7,7 @@ import {
   Trash2,
   Target,
   CloudUpload,
+  Activity,
 } from "lucide-react";
 
 export default function StatsView({
@@ -415,7 +416,14 @@ export default function StatsView({
             }`}
           >
             {isSaving ? (
-              "Saving..."
+              <div className="flex items-center gap-2">
+                <div className="relative w-5 h-5 bg-amber-500 rounded-full border-2 border-slate-900 flex items-center justify-center overflow-hidden animate-bounce shrink-0">
+                  <Activity className="text-white opacity-40" size={12} />
+                  <div className="absolute w-full h-px bg-slate-900/10 rotate-45"></div>
+                  <div className="absolute w-full h-px bg-slate-900/10 -rotate-45"></div>
+                </div>
+                <span className="animate-pulse">Saving...</span>
+              </div>
             ) : (
               <>
                 <CloudUpload size={20} /> Save Game to History
