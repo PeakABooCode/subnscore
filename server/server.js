@@ -84,13 +84,23 @@ app.use("/api/auth", authRoutes);
 app.use("/api/games", gameRoutes);
 
 // --- PRODUCTION STATIC ASSETS ---
-// Serve static files from the React app
-const clientBuildPath = path.join(__dirname, "../client/dist");
+// Use process.cwd() to anchor paths to the project root on Render
+const clientBuildPath = path.resolve(process.cwd(), "client", "dist");
+
+console.log(`Folder for static assets: ${clientBuildPath}`);
+
 app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match an API route
 app.get("*all", (req, res) => {
-  res.sendFile(path.join(clientBuildPath, "index.html"));
+  res.sendFile(path.join(clientBuildPath, "index.html"), (err) => {
+    if (err) {
+      console.error("Error sending index.html:", err);
+      res
+        .status(500)
+        .send("The frontend build is missing. Check your Render build logs.");
+    }
+  });
 });
 
 app.listen(PORT, () => {
