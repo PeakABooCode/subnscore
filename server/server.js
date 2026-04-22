@@ -40,8 +40,15 @@ app.use(
   cors({
     // Dynamically set origin based on environment or request origin
     origin: (origin, callback) => {
-      const allowedOrigins = [process.env.CLIENT_URL, "http://localhost:5173"];
-      if (!origin || allowedOrigins.includes(origin)) {
+      const clientUrl = process.env.CLIENT_URL;
+      const isAllowed =
+        !origin ||
+        origin === "http://localhost:5173" ||
+        origin === clientUrl ||
+        origin === clientUrl?.replace(/\/$/, "") || // Handle trailing slash
+        origin.endsWith(".onrender.com");
+
+      if (isAllowed) {
         // Allow requests with no origin (like Postman) or from allowed origins
         callback(null, true);
       } else {
