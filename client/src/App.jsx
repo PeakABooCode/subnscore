@@ -30,7 +30,7 @@ export default function App() {
       return [];
     }
   });
-  const [pendingSwapId, setPendingSwapId] = useState(null);
+  const [pendingSwapIds, setPendingSwapIds] = useState([]);
 
   // State to hold a loaded historical game
   const [historyData, setHistoryData] = useState(null);
@@ -474,7 +474,7 @@ export default function App() {
     setHistoryData(null);
     setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
     setTimeouts([]);
-    setPendingSwapId(null);
+    setPendingSwapIds([]);
 
     localStorage.removeItem("subnscore_actionHistory");
     localStorage.removeItem("subnscore_playerStats");
@@ -494,46 +494,66 @@ export default function App() {
   // --- Live Action Handlers ---
   const handleSwap = (playerId) => {
     if (isRunning) return showNotification("Pause clock to sub!");
-    if (!pendingSwapId) {
-      setPendingSwapId(playerId);
-      return;
-    }
-    if (pendingSwapId === playerId) {
-      setPendingSwapId(null);
-      return;
-    }
 
-    const firstOn = court.includes(pendingSwapId);
-    const secondOn = court.includes(playerId);
+    const isAlreadySelected = pendingSwapIds.includes(playerId);
+    let nextSelected;
 
-    if (firstOn === secondOn) {
-      setPendingSwapId(playerId);
-      return;
+    if (isAlreadySelected) {
+      nextSelected = pendingSwapIds.filter((id) => id !== playerId);
+    } else {
+      nextSelected = [...pendingSwapIds, playerId];
     }
 
-    const pOut = firstOn ? pendingSwapId : playerId;
-    const pIn = firstOn ? playerId : pendingSwapId;
+    const onCourtSelected = nextSelected.filter((id) => court.includes(id));
+    const onBenchSelected = nextSelected.filter((id) => !court.includes(id));
 
-    setStints((prev) =>
-      prev.map((s) =>
-        s.playerId === pOut && s.clockOut === null
-          ? { ...s, clockOut: clock }
-          : s,
-      ),
-    );
-    setStints((prev) => [
-      ...prev,
-      { playerId: pIn, quarter, clockIn: clock, clockOut: null },
-    ]);
-    setCourt((prev) => [...prev.filter((id) => id !== pOut), pIn]);
-    setActionHistory((prev) => [
-      ...prev,
-      { type: "SUB_IN", playerId: pIn, clock, quarter },
-      { type: "SUB_OUT", playerId: pOut, clock, quarter },
-    ]);
+    // If we have a balanced selection (e.g., 1 for 1, 2 for 2, 5 for 5)
+    if (
+      onCourtSelected.length === onBenchSelected.length &&
+      onCourtSelected.length > 0
+    ) {
+      const newStints = [...stints];
+      const newCourt = [...court];
+      const newActions = [...actionHistory];
 
-    setPendingSwapId(null);
-    showNotification("Subbed!");
+      onCourtSelected.forEach((pOut, index) => {
+        const pIn = onBenchSelected[index];
+
+        // 1. Close stint for player going out
+        newStints.forEach((s, i) => {
+          if (s.playerId === pOut && s.clockOut === null) {
+            newStints[i] = { ...s, clockOut: clock };
+          }
+        });
+
+        // 2. Open stint for player coming in
+        newStints.push({
+          id: Math.random().toString(),
+          playerId: pIn,
+          quarter,
+          clockIn: clock,
+          clockOut: null,
+        });
+
+        // 3. Update court
+        const outIdx = newCourt.indexOf(pOut);
+        if (outIdx > -1) newCourt[outIdx] = pIn;
+
+        // 4. Record history
+        newActions.push(
+          { type: "SUB_IN", playerId: pIn, clock, quarter },
+          { type: "SUB_OUT", playerId: pOut, clock, quarter },
+        );
+      });
+
+      setStints(newStints);
+      setCourt(newCourt);
+      setActionHistory(newActions);
+      setPendingSwapIds([]);
+      showNotification(`Subbed ${onCourtSelected.length} players!`);
+    } else {
+      setPendingSwapIds(nextSelected);
+    }
   };
 
   const addStat = (playerId, type, amount) => {
@@ -940,7 +960,7 @@ export default function App() {
             undoLastAction={undoLastAction}
             teamMeta={teamMeta}
             handleSwap={handleSwap}
-            pendingSwapId={pendingSwapId}
+            pendingSwapIds={pendingSwapIds}
             playerTimes={playerTimes}
           />
         )}

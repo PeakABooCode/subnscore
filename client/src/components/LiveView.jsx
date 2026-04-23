@@ -27,7 +27,7 @@ export default function LiveView({
   undoLastAction,
   teamMeta,
   handleSwap,
-  pendingSwapId,
+  pendingSwapIds,
   playerTimes,
 }) {
   const teamTotalScore = Object.values(playerStats).reduce(
@@ -104,7 +104,7 @@ export default function LiveView({
             <h3 className="text-xs md:text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <Users size={16} /> Active On Court
             </h3>
-            {pendingSwapId && (
+            {pendingSwapIds.length > 0 && (
               <span className="text-[10px] font-black text-blue-600 animate-pulse bg-blue-50 px-2 py-1 rounded">
                 TAP PLAYER TO SWAP
               </span>
@@ -119,7 +119,7 @@ export default function LiveView({
               fouls: 0,
               turnovers: 0,
             };
-            const isSelected = pendingSwapId === id;
+            const isSelected = pendingSwapIds.includes(id);
             const timePlayed = playerTimes?.[id] || 0;
 
             return (
@@ -232,7 +232,7 @@ export default function LiveView({
               {roster
                 .filter((p) => !court.includes(p.id))
                 .map((p) => {
-                  const isSelected = pendingSwapId === p.id;
+                  const isSelected = pendingSwapIds.includes(p.id);
                   const stats = playerStats[p.id] || {
                     score: 0,
                     fouls: 0,
