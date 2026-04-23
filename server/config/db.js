@@ -3,15 +3,20 @@ import pkg from "pg";
 const { Pool } = pkg;
 import "dotenv/config";
 
+// Determine if we should use SSL based on environment and destination
+const useSSL =
+  process.env.NODE_ENV === "production" &&
+  !process.env.DATABASE_URL?.includes("localhost") &&
+  !process.env.DATABASE_URL?.includes("127.0.0.1");
+
 // Create a new pool using the connection string from your .env file
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? {
-          rejectUnauthorized: false,
-        }
-      : false,
+  ssl: useSSL
+    ? {
+        rejectUnauthorized: false,
+      }
+    : false,
 });
 
 // Test the connection

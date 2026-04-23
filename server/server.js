@@ -44,6 +44,7 @@ app.use(
       const isAllowed =
         !origin ||
         origin === "http://localhost:5173" ||
+        origin === "http://localhost:5000" ||
         origin === clientUrl ||
         origin === clientUrl?.replace(/\/$/, "") || // Handle trailing slash
         origin.endsWith(".onrender.com");
