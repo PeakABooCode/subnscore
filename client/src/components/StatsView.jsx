@@ -232,7 +232,78 @@ export default function StatsView({
             </h3>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile View: Player Cards (Visible only on small screens) */}
+          <div className="md:hidden p-4 space-y-3 bg-slate-50/50">
+            {roster.map((p) => {
+              const stats = playerStats[p.id] || {
+                score: 0,
+                fouls: 0,
+                turnovers: 0,
+                minutes: "0:00",
+              };
+              const displayMins = isHistory
+                ? stats.minutes || "0:00"
+                : calculateMins(p.id);
+
+              return (
+                <div
+                  key={p.id}
+                  className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3"
+                >
+                  {/* Player Identity & Minutes */}
+                  <div className="flex justify-between items-center border-b border-slate-50 pb-2">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-xs font-black text-amber-400">
+                        #{p.jersey}
+                      </span>
+                      <span className="font-black text-slate-800 uppercase tracking-tight">
+                        {p.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-black tabular-nums border border-blue-100">
+                      <Clock size={12} />
+                      {displayMins}
+                    </div>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
+                      <div className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
+                        Pts
+                      </div>
+                      <div className="text-xl font-black text-slate-900">
+                        {stats.score}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
+                      <div className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
+                        TO
+                      </div>
+                      <div className="text-xl font-black text-orange-600">
+                        {stats.turnovers || 0}
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
+                      <div className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
+                        Fls
+                      </div>
+                      <div
+                        className={`text-xl font-black ${
+                          stats.fouls >= 5 ? "text-red-600" : "text-slate-900"
+                        }`}
+                      >
+                        {stats.fouls}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop View: Traditional Table (Hidden on small screens) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-slate-100 border-b border-slate-200 text-slate-500 text-[10px] sm:text-xs uppercase tracking-widest">
