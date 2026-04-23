@@ -202,13 +202,6 @@ export default function App() {
     };
     checkSession();
 
-    // Detect password reset token in URL on load
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has("token")) {
-      setAuthMode("resetPassword");
-      setView("AUTH");
-    }
-
     // 1. Restore clock and timer state from localStorage on mount
     const savedClock = localStorage.getItem("subnscore_clock");
     const savedRunning = localStorage.getItem("subnscore_isRunning");
@@ -289,7 +282,6 @@ export default function App() {
       const errorMsg =
         err.response?.data?.error || "Failed to send reset link.";
       showNotification(errorMsg);
-      console.error("Mailgun/SMTP Error:", err.response?.data || err.message);
     } finally {
       setIsAuthLoading(false);
     }
@@ -317,10 +309,7 @@ export default function App() {
         confirmPassword: authForm.confirmPassword,
       });
       showNotification(res.data.message);
-
-      // Clear the URL token and form
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setAuthForm({ email: "", password: "", confirmPassword: "", name: "" });
+      setAuthForm({ email: "", password: "", confirmPassword: "", name: "" }); // Clear form
       setAuthMode("login"); // Go back to login view
     } catch (err) {
       console.error("Reset Password Error:", err.response);

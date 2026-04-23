@@ -2,6 +2,10 @@ import express from "express";
 import bcrypt from "bcrypt";
 import passport from "passport";
 import pool from "../config/db.js";
+import {
+  forgotPassword,
+  resetPassword,
+} from "../controllers/passwordRecoveryController.js";
 import rateLimit from "express-rate-limit";
 
 const router = express.Router();
@@ -22,6 +26,18 @@ const authLimiter = rateLimit({
 const standardLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiter for forgot password requests (to prevent spamming email service)
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 3, // Allow 3 requests per IP per 5 minutes
+  message: {
+    error:
+      "Too many password reset requests. Please try again after 5 minutes.",
+  },
   standardHeaders: true,
   legacyHeaders: false,
 });
@@ -119,5 +135,12 @@ router.get(
     res.redirect("/");
   },
 );
+
+// --- PASSWORD RECOVERY ROUTES ---
+router.post("/forgot-password", forgotPasswordLimiter, (req, res, next) => {
+  console.log("POST /api/auth/forgot-password hit");
+  forgotPassword(req, res, next);
+});
+router.post("/reset-password", resetPassword);
 
 export default router;
