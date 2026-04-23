@@ -6,6 +6,8 @@ import {
   Pencil,
   Trophy,
   Calendar,
+  CloudDownload,
+  Save,
 } from "lucide-react";
 
 export default function SetupView({
@@ -21,6 +23,8 @@ export default function SetupView({
   startGame,
   setupAttempted,
   resetGame,
+  handleSaveRoster,
+  handleLoadRoster,
 }) {
   const capitalizeWords = (str) => {
     return str
@@ -202,6 +206,22 @@ export default function SetupView({
             Add Player
           </button>
         </form>
+
+        {/* CLOUD SYNC TOOLS */}
+        <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
+          <button
+            onClick={handleLoadRoster}
+            className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-black uppercase transition-all"
+          >
+            <CloudDownload size={14} /> Load Saved Roster
+          </button>
+          <button
+            onClick={handleSaveRoster}
+            className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-black uppercase transition-all"
+          >
+            <Save size={14} /> Save as Permanent
+          </button>
+        </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           {roster.length === 0 ? (

@@ -67,16 +67,20 @@ router.post("/register", authLimiter, async (req, res) => {
 });
 
 // --- LOGIN ROUTE ---
-router.post(
-  "/login",
-  authLimiter,
-  passport.authenticate("local"),
-  (req, res) => {
-    // If passport fails, it automatically sends a 401 error.
-    // If it succeeds, it reaches here.
-    res.json({ message: "Logged in successfully", user: req.user });
-  },
-);
+router.post("/login", authLimiter, (req, res, next) => {
+  passport.authenticate("local", (err, user, info) => {
+    if (err) return next(err);
+    if (!user) {
+      // Return the specific message from the Passport Strategy
+      return res.status(401).json({ error: info?.message || "Login failed" });
+    }
+    req.login(user, (loginErr) => {
+      if (loginErr) return next(loginErr);
+      // Successful login
+      res.json({ message: "Logged in successfully", user });
+    });
+  })(req, res, next);
+});
 
 // --- LOGOUT ROUTE ---
 router.post("/logout", (req, res, next) => {

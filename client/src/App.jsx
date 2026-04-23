@@ -284,6 +284,54 @@ export default function App() {
     }
   };
 
+  const handleSaveRoster = async () => {
+    if (!teamMeta.teamName) return showNotification("Enter team name first!");
+    if (roster.length === 0)
+      return showNotification("Add players to save roster!");
+
+    try {
+      await axios.post("/api/teams/roster", {
+        teamName: teamMeta.teamName,
+        roster: roster,
+      });
+      showNotification("Permanent roster saved!");
+    } catch (err) {
+      console.error("Save Roster Error:", err.response);
+      if (err.response?.status === 401) {
+        setView("AUTH");
+        showNotification("Session expired. Please log in.");
+      } else {
+        showNotification("Failed to save roster to cloud.");
+      }
+    }
+  };
+
+  const handleLoadRoster = async () => {
+    if (!teamMeta.teamName)
+      return showNotification("Enter team name to search!");
+
+    try {
+      const res = await axios.get(`/api/teams/roster/${teamMeta.teamName}`);
+      if (res.data.length === 0)
+        return showNotification("No saved roster found.");
+
+      const loadedRoster = res.data.map((p) => ({
+        ...p,
+        id: Math.random().toString(),
+      }));
+      setRoster(loadedRoster);
+      showNotification(`Loaded ${loadedRoster.length} players!`);
+    } catch (err) {
+      console.error("Load Roster Error:", err.response);
+      if (err.response?.status === 401) {
+        setView("AUTH");
+        showNotification("Session expired. Please log in.");
+      } else {
+        showNotification("Error loading roster.");
+      }
+    }
+  };
+
   // --- Game Setup Handlers ---
   const handleAddPlayer = (e) => {
     e.preventDefault();
@@ -790,6 +838,8 @@ export default function App() {
             startGame={startGame}
             setupAttempted={setupAttempted}
             resetGame={resetGame}
+            handleSaveRoster={handleSaveRoster}
+            handleLoadRoster={handleLoadRoster}
           />
         )}
 

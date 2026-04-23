@@ -10,6 +10,7 @@ passport.use(
   new LocalStrategy(
     { usernameField: "email" },
     async (email, password, done) => {
+      console.log(`Attempting local login for: ${email}`);
       try {
         // Find user by email
         const result = await pool.query(
@@ -17,26 +18,44 @@ passport.use(
           [email],
         );
         if (result.rows.length === 0) {
-          return done(null, false, { message: "Incorrect email or password." });
+          console.log(`User not found: ${email}`);
+          return done(null, false, {
+            message: "No account found with this email. Please register.",
+          });
         }
 
         const user = result.rows[0];
 
         // Handle users registered via Google who don't have a local password
         if (!user.password_hash) {
+          console.log(
+            `User ${email} has no password_hash, likely Google user.`,
+          );
           return done(null, false, {
             message: "This account uses Google Login.",
           });
         }
 
         // Compare hashed password
+        console.log(`User object for ${email}:`, user);
+        console.log(`Password hash from DB for ${email}:`, user.password_hash);
+        // Ensure password_hash is a string before comparing to prevent TypeError
+        if (typeof user.password_hash !== "string") {
+          throw new Error(
+            `Invalid password hash format for user: ${email}. Expected string, got ${typeof user.password_hash}.`,
+          );
+        }
         const isValid = await bcrypt.compare(password, user.password_hash);
         if (!isValid) {
-          return done(null, false, { message: "Incorrect email or password." });
+          return done(null, false, {
+            message: "Incorrect password. Please try again.",
+          });
         }
 
+        console.log(`Login successful for: ${email}`);
         return done(null, user); // Success!
       } catch (err) {
+        console.error(`Error during local login for ${email}:`, err);
         return done(err);
       }
     },

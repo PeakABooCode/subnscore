@@ -10,6 +10,7 @@ import rateLimit from "express-rate-limit";
 import "./config/passport.js"; // Imports our passport config
 import authRoutes from "./routes/authRoutes.js"; // Imports our routes
 import gameRoutes from "./routes/gameRoutes.js";
+import teamRoutes from "./routes/teamRoutes.js";
 
 /**PREPARING BACKEND FOR PRODUCTION  */
 // Add this to your main server.js file
@@ -90,6 +91,7 @@ app.use(passport.session());
 // --- ROUTES ---
 app.use("/api/auth", authRoutes);
 app.use("/api/games", gameRoutes);
+app.use("/api/teams", teamRoutes);
 
 // --- PRODUCTION STATIC ASSETS ---
 // Use process.cwd() to anchor paths to the project root on Render
