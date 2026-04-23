@@ -40,6 +40,7 @@ export default function App() {
   const [authForm, setAuthForm] = useState({
     email: "",
     password: "",
+    confirmPassword: "",
     name: "",
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -224,6 +225,15 @@ export default function App() {
     e.preventDefault();
     setIsAuthLoading(true);
     try {
+      // Validation: Check if passwords match during registration
+      if (
+        authMode === "register" &&
+        authForm.password !== authForm.confirmPassword
+      ) {
+        showNotification("Passwords do not match!");
+        return;
+      }
+
       if (authMode === "login") {
         const res = await axios.post("/api/auth/login", {
           email: authForm.email,

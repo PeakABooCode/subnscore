@@ -1,5 +1,5 @@
-import React from "react";
-import { Globe, Mail, Lock, User, Activity, ShieldAlert } from "lucide-react";
+import React, { useState } from "react";
+import { Globe, Mail, Lock, User, Activity, Eye, EyeOff } from "lucide-react";
 
 export default function AuthView({
   authMode,
@@ -9,6 +9,8 @@ export default function AuthView({
   handleLocalAuth,
   handleDemoLogin,
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+
   return (
     <div className="flex items-center justify-center min-h-[80vh] px-4">
       <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-2xl border border-slate-100 relative overflow-hidden">
@@ -83,17 +85,58 @@ export default function AuthView({
                 size={18}
               />
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
-                className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all font-bold text-slate-700"
+                className="w-full pl-10 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all font-bold text-slate-700"
                 placeholder="••••••••"
                 value={authForm.password}
                 onChange={(e) =>
                   setAuthForm({ ...authForm, password: e.target.value })
                 }
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
           </div>
+
+          {authMode === "register" && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
+                Confirm Security Key
+              </label>
+              <div className="relative">
+                <Lock
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  size={18}
+                />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  className="w-full pl-10 pr-12 py-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 transition-all font-bold text-slate-700"
+                  placeholder="••••••••"
+                  value={authForm.confirmPassword}
+                  onChange={(e) =>
+                    setAuthForm({
+                      ...authForm,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"
@@ -113,16 +156,9 @@ export default function AuthView({
         </div>
 
         <button
-          /*
           onClick={() =>
             (window.location.href = "http://localhost:5000/api/auth/google")
           }
-            */
-
-          onClick={() => {
-            const apiUrl = import.meta.env.VITE_API_URL || "";
-            window.location.href = `${apiUrl}/api/auth/google`;
-          }}
           className="w-full flex items-center justify-center gap-3 border-2 border-slate-100 py-3.5 rounded-xl font-black text-slate-700 hover:bg-slate-50 hover:border-slate-200 transition-all active:scale-[0.98]"
         >
           <Globe size={18} className="text-red-500" /> Google Login
