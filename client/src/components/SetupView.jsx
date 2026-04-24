@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   Settings,
   UserPlus,
@@ -9,6 +9,7 @@ import {
   CloudDownload,
   Save,
 } from "lucide-react";
+import EditPlayerModal from "./EditPlayerModal";
 
 export default function SetupView({
   user,
@@ -27,6 +28,9 @@ export default function SetupView({
   gameInProgress, // New prop
   handleLoadRoster,
 }) {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [playerToEdit, setPlayerToEdit] = useState(null);
+
   const capitalizeWords = (str) => {
     return str
       .split(" ")
@@ -35,11 +39,13 @@ export default function SetupView({
   };
 
   const onEditClick = (p) => {
-    const newName = window.prompt(`Edit name for jersey #${p.jersey}:`, p.name);
-    if (newName !== null && newName.trim() !== "") {
-      const lettersOnly = newName.replace(/[^a-zA-Z\s]/g, "");
-      handleEditPlayer(p.id, capitalizeWords(lettersOnly.trim()));
-    }
+    setPlayerToEdit(p);
+    setIsEditModalOpen(true);
+  };
+
+  const handleModalSave = (id, updates) => {
+    handleEditPlayer(id, updates);
+    setIsEditModalOpen(false);
   };
 
   const nameInputRef = useRef(null);
@@ -271,6 +277,13 @@ export default function SetupView({
         <Play fill="currentColor" size={20} />{" "}
         {gameInProgress ? "Resume Game" : "Start Game Tracking"}
       </button>
+
+      <EditPlayerModal
+        player={playerToEdit}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleModalSave}
+      />
 
       {/* Reset Data Button */}
       <div className="flex justify-center mt-4">

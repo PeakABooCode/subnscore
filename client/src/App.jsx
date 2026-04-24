@@ -521,8 +521,8 @@ export default function App() {
     setNewPlayer({ name: "", jersey: "" });
   };
 
-  const handleEditPlayer = (id, newName) => {
-    setRoster(roster.map((p) => (p.id === id ? { ...p, name: newName } : p)));
+  const handleEditPlayer = (id, updates) => {
+    setRoster(roster.map((p) => (p.id === id ? { ...p, ...updates } : p)));
   };
 
   const startGame = () => {
