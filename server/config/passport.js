@@ -69,7 +69,11 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       // Use an absolute URL to ensure consistency between authorization and token exchange
-      callbackURL: "http://localhost:5000/api/auth/google/callback",
+      // In server/config/passport.js
+      callbackURL:
+        (process.env.BACKEND_URL || "http://localhost:5000") +
+        "/api/auth/google/callback",
+
       proxy: true,
     },
     async (accessToken, refreshToken, profile, done) => {
