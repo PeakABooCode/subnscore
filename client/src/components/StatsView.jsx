@@ -20,12 +20,11 @@ export default function StatsView({
   quarter,
   resetGame,
   actionHistory = [],
-  handleSaveGame,
+  triggerSaveGame, // Prop to trigger save game modal from App.jsx
   isHistory, // Prop to detect if we are viewing a past game
   historyQuarterStats, // New prop for pre-calculated quarter data
 }) {
   const [activeTab, setActiveTab] = useState("boxscore"); // boxscore, quarters, timeline
-  const [isSaving, setIsSaving] = useState(false);
 
   // --- Calculations ---
   const teamTotalScore = Object.values(playerStats).reduce(
@@ -55,8 +54,8 @@ export default function StatsView({
             // Currently on court in the active quarter
             total += s.clockIn - clock;
           } else if (s.quarter < quarter) {
-            // Played in a previous quarter that didn't record a clockOut (fallback)
-            total += s.clockIn;
+            // Played until the end of a previous quarter (fallback)
+            total += s.clockIn - 0;
           }
         });
       return formatTime(total);
@@ -138,7 +137,8 @@ export default function StatsView({
           } else if (s.quarter === quarter) {
             qSecs += s.clockIn - clock;
           } else if (s.quarter < quarter) {
-            qSecs += s.clockIn;
+            // This stint belongs to the quarter we are calculating (qtr < current quarter)
+            qSecs += s.clockIn - 0;
           }
         });
     }
@@ -147,9 +147,7 @@ export default function StatsView({
   };
 
   const onSaveClick = async () => {
-    setIsSaving(true);
-    await handleSaveGame();
-    setIsSaving(false);
+    triggerSaveGame();
   };
 
   const quarterData = getQuarterAppearances();
@@ -547,33 +545,18 @@ export default function StatsView({
           onClick={resetGame}
           className="w-full sm:w-auto order-2 sm:order-1 bg-white border-2 border-red-200 hover:bg-red-50 hover:border-red-500 text-red-600 font-black py-3 px-6 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
         >
+          {" "}
+          {/* resetGame is now a function that triggers the modal */}
           <Trash2 size={18} /> {isHistory ? "Close Report" : "Trash Game"}
         </button>
 
         {!isHistory && (
           <button
-            onClick={onSaveClick}
-            disabled={isSaving}
-            className={`w-full sm:w-auto order-1 sm:order-2 font-black py-3 px-8 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-white ${
-              isSaving
-                ? "bg-slate-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 active:scale-95"
-            }`}
+            onClick={onSaveClick} // This now directly calls the triggerSaveGame prop
+            className="w-full sm:w-auto order-1 sm:order-2 font-black py-3 px-8 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-white bg-blue-600 hover:bg-blue-700 active:scale-95"
           >
-            {isSaving ? (
-              <div className="flex items-center gap-2">
-                <div className="relative w-5 h-5 bg-amber-500 rounded-full border-2 border-slate-900 flex items-center justify-center overflow-hidden animate-bounce shrink-0">
-                  <Activity className="text-white opacity-40" size={12} />
-                  <div className="absolute w-full h-px bg-slate-900/10 rotate-45"></div>
-                  <div className="absolute w-full h-px bg-slate-900/10 -rotate-45"></div>
-                </div>
-                <span className="animate-pulse">Saving...</span>
-              </div>
-            ) : (
-              <>
-                <CloudUpload size={20} /> Save Game to History
-              </>
-            )}
+            {/* The saving animation/text will now be handled by the InputModal in App.jsx */}
+            <CloudUpload size={20} /> Save Game to History
           </button>
         )}
       </div>

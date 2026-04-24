@@ -7,6 +7,8 @@ import AuthView from "./components/AuthView";
 import SetupView from "./components/SetupView";
 import LiveView from "./components/LiveView";
 import StatsView from "./components/StatsView";
+import ConfirmationModal from "./components/ConfirmationModal";
+import InputModal from "./components/InputModal";
 import HistoryView from "./components/HistoryView";
 import { useTimer } from "./hooks/useTimer";
 import { QUARTER_SECONDS } from "./utils/helpers";
@@ -119,6 +121,15 @@ export default function App() {
   });
 
   const [setupAttempted, setSetupAttempted] = useState(false);
+
+  // --- Modal States ---
+  const [isResetGameConfirmOpen, setIsResetGameConfirmOpen] = useState(false);
+  const [isAdvanceQuarterConfirmOpen, setIsAdvanceQuarterConfirmOpen] =
+    useState(false);
+  const [isOpponentScoreInputOpen, setIsOpponentScoreInputOpen] =
+    useState(false);
+  const [opponentScoreInput, setOpponentScoreInput] = useState("0");
+  const [saveGameCallback, setSaveGameCallback] = useState(null);
 
   // Derived state to determine if a game session is already active
   const gameInProgress =
@@ -559,18 +570,17 @@ export default function App() {
     setView("LIVE");
   };
 
-  const resetGame = (force = false) => {
-    if (
-      !force &&
-      !window.confirm(
-        "Start new game? This clears everything including textboxes.",
-      )
-    )
+  const resetGame = (force = false, skipConfirm = false) => {
+    // When called via onClick, 'force' is the Event object.
+    // We check strictly for 'true' to distinguish programmatic calls from UI events.
+    if (force !== true && skipConfirm !== true) {
+      setIsResetGameConfirmOpen(true);
       return;
+    }
 
     // 1. Wipe Team & Roster (The "Textboxes")
     setTeamMeta({
-      teamName: "",
+      teamName: user?.teamName || "", // Pre-fill with user's default team name if available
       opponent: "",
       league: "",
       season: "",
@@ -606,13 +616,14 @@ export default function App() {
     setView("SETUP");
   };
 
-  // --- Live Action Handlers ---
+  // --- Live Action Handlers --- //
   const handleSwap = (playerId) => {
     if (isRunning) return showNotification("Pause clock to sub!");
 
     const isAlreadySelected = pendingSwapIds.includes(playerId);
     let nextSelected;
 
+    // Logic for multi-player swap selection
     if (isAlreadySelected) {
       nextSelected = pendingSwapIds.filter((id) => id !== playerId);
     } else {
@@ -726,10 +737,12 @@ export default function App() {
     showNotification("Undo successful.");
   };
 
-  const advanceQuarter = () => {
+  const advanceQuarter = (skipConfirm = false) => {
     const pName =
       quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
-    if (!window.confirm(`End ${pName}?`)) return;
+    // When called via onClick, 'skipConfirm' is the Event object.
+    // Strictly check for 'true' to ensure the modal is triggered.
+    if (skipConfirm !== true) return setIsAdvanceQuarterConfirmOpen(true);
 
     const updatedStints = stints.map((s) =>
       s.clockOut === null ? { ...s, clockOut: clock } : s,
@@ -752,8 +765,8 @@ export default function App() {
     setIsRunning(false);
   };
 
-  // --- Backend Integration Handlers ---
-  const handleSaveGame = async () => {
+  // --- Backend Integration Handlers --- //
+  const handleSaveGame = async (oppScoreValue) => {
     if (user?.email === "demo@subnscore.com")
       return showNotification("Demo Mode: Cannot save.");
 
@@ -762,11 +775,14 @@ export default function App() {
       return acc + (curr.score || 0);
     }, 0);
 
-    const oppScore = window.prompt(
-      `Enter final score for ${teamMeta.opponent}:`,
-      "0",
-    );
-    if (oppScore === null) return;
+    // If oppScoreValue is not provided, open the input modal
+    if (oppScoreValue === undefined) {
+      setSaveGameCallback(() => (score) => handleSaveGame(score));
+      setIsOpponentScoreInputOpen(true);
+      return;
+    }
+
+    const oppScore = parseInt(oppScoreValue) || 0;
 
     try {
       // Final Minutes and Seconds Calculation for the DB columns
@@ -780,7 +796,7 @@ export default function App() {
                 ? s.clockOut
                 : s.quarter === quarter
                   ? clock
-                  : 0;
+                  : 0; // Fallback: Played to the end of the quarter
             totalSeconds += s.clockIn - out;
           });
 
@@ -854,7 +870,7 @@ export default function App() {
         actionHistory,
         timeouts,
         finalScoreUs: teamScore,
-        finalScoreThem: parseInt(oppScore) || 0,
+        finalScoreThem: oppScore,
       };
 
       await axios.post("/api/games/save", payload);
@@ -1091,11 +1107,50 @@ export default function App() {
             quarter={historyData ? historyData.quarter : quarter}
             actionHistory={historyData ? historyData.actions : actionHistory}
             resetGame={() => (historyData ? setView("HISTORY") : resetGame())}
-            handleSaveGame={handleSaveGame}
+            triggerSaveGame={handleSaveGame}
             isHistory={!!historyData}
             historyQuarterStats={historyData?.quarterStats}
           />
         )}
+
+        {/* Confirmation Modal for Reset Game */}
+        <ConfirmationModal
+          isOpen={isResetGameConfirmOpen}
+          onClose={() => setIsResetGameConfirmOpen(false)}
+          onConfirm={() => {
+            resetGame(true, true); // Force reset, skip further confirmation
+            setIsResetGameConfirmOpen(false);
+          }}
+          title="Confirm New Game"
+          message="Are you sure you want to start a new game? This will clear all current game data, stats, and textboxes."
+          confirmText="Start New Game"
+          confirmButtonClass="bg-red-600 hover:bg-red-700"
+        />
+
+        {/* Confirmation Modal for Advance Quarter */}
+        <ConfirmationModal
+          isOpen={isAdvanceQuarterConfirmOpen}
+          onClose={() => setIsAdvanceQuarterConfirmOpen(false)}
+          onConfirm={() => {
+            advanceQuarter(true); // Skip further confirmation
+            setIsAdvanceQuarterConfirmOpen(false);
+          }}
+          title={`End ${quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`}?`}
+          message={`Are you sure you want to end ${quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`} and advance to the next period?`}
+          confirmText="Advance Quarter"
+          confirmButtonClass="bg-blue-600 hover:bg-blue-700"
+        />
+
+        {/* Input Modal for Opponent Score */}
+        <InputModal
+          isOpen={isOpponentScoreInputOpen}
+          onClose={() => setIsOpponentScoreInputOpen(false)}
+          onSave={saveGameCallback}
+          title={`Enter Final Score for ${teamMeta.opponent}`}
+          message="Please enter the opponent's final score to save the game."
+          initialValue={opponentScoreInput}
+          inputType="number"
+        />
       </main>
     </div>
   );

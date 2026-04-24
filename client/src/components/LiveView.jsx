@@ -18,7 +18,7 @@ export default function LiveView({
   clock,
   isRunning,
   setIsRunning,
-  quarter,
+  quarter, // Keep quarter here
   advanceQuarter,
   addStat,
   teamFouls,
@@ -87,7 +87,7 @@ export default function LiveView({
             </button>
             <button
               title="Next Quarter"
-              onClick={advanceQuarter}
+              onClick={() => advanceQuarter()} // Trigger the modal
               className="hidden md:flex p-5 bg-slate-700 hover:bg-slate-600 rounded-full border border-slate-600 active:scale-95"
             >
               <RotateCcw size={20} />
@@ -313,9 +313,11 @@ export default function LiveView({
 
           {/* Advance Quarter (Tablet/Mobile Only Button - shown inside sidebar) */}
           <button
-            onClick={advanceQuarter}
+            onClick={() => advanceQuarter()}
             className="md:hidden w-full py-4 bg-slate-200 text-slate-800 rounded-xl font-black text-xs uppercase tracking-widest"
           >
+            {" "}
+            {/* advanceQuarter is now a function that triggers the modal */}
             Advance to {nextShortPeriodName}
           </button>
         </div>
