@@ -139,7 +139,7 @@ export default function SetupView({
               onChange={(e) =>
                 setTeamMeta({
                   ...teamMeta,
-                  league: capitalizeWords(e.target.value),
+                  league: e.target.value,
                 })
               }
             />
@@ -161,12 +161,13 @@ export default function SetupView({
               }`}
               placeholder="e.g. 1, 2, 3, 4, etc."
               value={teamMeta.season}
-              onChange={(e) =>
+              onChange={(e) => {
+                const val = e.target.value.replace(/[^0-9]/g, "");
                 setTeamMeta({
                   ...teamMeta,
-                  season: capitalizeWords(e.target.value),
-                })
-              }
+                  season: val,
+                });
+              }}
             />
           </div>
         </div>
