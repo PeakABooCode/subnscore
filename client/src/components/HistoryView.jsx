@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Calendar, Users, ChevronRight, Activity } from "lucide-react";
+import { Calendar, Users, ChevronRight, Activity, Trash2 } from "lucide-react";
+import ConfirmationModal from "./ConfirmationModal";
 
 export default function HistoryView({ onViewGame }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [gameToDelete, setGameToDelete] = useState(null);
 
   useEffect(() => {
     const fetchGames = async () => {
@@ -19,6 +22,23 @@ export default function HistoryView({ onViewGame }) {
     };
     fetchGames();
   }, []);
+
+  const handleDeleteClick = (e, id) => {
+    e.stopPropagation();
+    setGameToDelete(id);
+    setIsConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await axios.delete(`/api/games/${gameToDelete}`);
+      setGames(games.filter((g) => g.id !== gameToDelete));
+      setIsConfirmOpen(false);
+      setGameToDelete(null);
+    } catch (err) {
+      console.error("Error deleting game:", err);
+    }
+  };
 
   if (loading)
     return <div className="text-center p-10 font-bold">Loading History...</div>;
@@ -38,10 +58,10 @@ export default function HistoryView({ onViewGame }) {
       ) : (
         <div className="grid gap-3">
           {games.map((g) => (
-            <button
+            <div
               key={g.id}
               onClick={() => onViewGame(g.id)}
-              className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between hover:border-blue-500 transition-all group"
+              className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between hover:border-blue-500 transition-all group cursor-pointer"
             >
               <div className="flex items-center gap-4 text-left">
                 <div className="bg-slate-100 p-3 rounded-lg group-hover:bg-blue-50 transition-colors">
@@ -66,12 +86,32 @@ export default function HistoryView({ onViewGame }) {
                     {g.final_score_us} - {g.final_score_them}
                   </span>
                 </div>
-                <ChevronRight className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={(e) => handleDeleteClick(e, g.id)}
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    title="Delete Game"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <ChevronRight className="text-slate-300 group-hover:text-blue-500 transition-colors" />
+                </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
+
+      <ConfirmationModal
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Game History"
+        message="Are you sure you want to permanently delete this game? This action will remove all statistics and logs and cannot be undone."
+        confirmText="Delete Permanently"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+      />
     </div>
   );
 }

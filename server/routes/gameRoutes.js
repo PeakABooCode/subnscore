@@ -4,6 +4,7 @@ import {
   saveGameSession,
   getGames,
   getGameDetails,
+  deleteGame,
 } from "../controllers/gameController.js";
 
 const router = express.Router();
@@ -18,5 +19,6 @@ const isAuth = (req, res, next) => {
 router.post("/save", isAuth, saveGameSession);
 router.get("/", isAuth, getGames);
 router.get("/:id", isAuth, getGameDetails);
+router.delete("/:id", isAuth, deleteGame);
 
 export default router;

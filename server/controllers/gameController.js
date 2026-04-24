@@ -201,3 +201,40 @@ export const getGameDetails = async (req, res) => {
     res.status(500).json({ error: "Failed to load game details" });
   }
 };
+
+export const deleteGame = async (req, res) => {
+  const { id } = req.params;
+  const coachId = req.user.id;
+
+  try {
+    await pool.query("BEGIN");
+
+    // Verify game ownership before deleting
+    const gameCheck = await pool.query(
+      `SELECT g.id FROM games g 
+       JOIN teams t ON g.team_id = t.id 
+       WHERE g.id = $1 AND t.coach_id = $2`,
+      [id, coachId],
+    );
+
+    if (gameCheck.rows.length === 0) {
+      await pool.query("ROLLBACK");
+      return res.status(404).json({ error: "Game not found or unauthorized." });
+    }
+
+    await pool.query("DELETE FROM substitution_logs WHERE game_id = $1", [id]);
+    await pool.query("DELETE FROM action_logs WHERE game_id = $1", [id]);
+    await pool.query("DELETE FROM player_quarter_stats WHERE game_id = $1", [
+      id,
+    ]);
+    await pool.query("DELETE FROM game_stats WHERE game_id = $1", [id]);
+    await pool.query("DELETE FROM games WHERE id = $1", [id]);
+
+    await pool.query("COMMIT");
+    res.json({ message: "Game deleted successfully" });
+  } catch (err) {
+    await pool.query("ROLLBACK");
+    console.error("Delete Game Error:", err);
+    res.status(500).json({ error: "Failed to delete game data." });
+  }
+};
