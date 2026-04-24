@@ -790,22 +790,30 @@ export default function App() {
     const historyCopy = [...actionHistory];
     const lastAction = historyCopy.pop();
 
-    setPlayerStats((prev) => ({
-      ...prev,
-      [lastAction.playerId]: {
-        ...prev[lastAction.playerId],
-        [lastAction.type]: Math.max(
-          0,
-          prev[lastAction.playerId][lastAction.type] - lastAction.amount,
-        ),
-      },
-    }));
-
-    if (lastAction.type === "fouls") {
-      setTeamFouls((prev) => ({
+    if (lastAction.type === "TIMEOUT") {
+      setTimeouts((prev) => prev.slice(0, -1));
+    } else if (lastAction.playerId) {
+      setPlayerStats((prev) => ({
         ...prev,
-        [lastAction.quarter]: Math.max(0, prev[lastAction.quarter] - 1),
+        [lastAction.playerId]: {
+          ...prev[lastAction.playerId],
+          [lastAction.type]: Math.max(
+            0,
+            (prev[lastAction.playerId][lastAction.type] || 0) -
+              (lastAction.amount || 0),
+          ),
+        },
       }));
+
+      if (lastAction.type === "fouls") {
+        setTeamFouls((prev) => ({
+          ...prev,
+          [lastAction.quarter]: Math.max(
+            0,
+            (prev[lastAction.quarter] || 0) - 1,
+          ),
+        }));
+      }
     }
     setActionHistory(historyCopy);
     showNotification("Undo successful.");
@@ -1188,6 +1196,10 @@ export default function App() {
             addTimeout={() => {
               setTimeouts([...timeouts, { quarter, clock }]);
               setIsRunning(false);
+              setActionHistory((prev) => [
+                ...prev,
+                { type: "TIMEOUT", quarter, clock },
+              ]);
             }}
             undoLastAction={undoLastAction}
             teamMeta={teamMeta}
