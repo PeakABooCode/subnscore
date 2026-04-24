@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { Activity, LogOut, History as HistoryIcon } from "lucide-react";
+import { Activity, LogOut, History as HistoryIcon, Lock } from "lucide-react";
 
 // --- Imports ---
 import AuthView from "./components/AuthView";
@@ -1022,7 +1022,7 @@ export default function App() {
                   setView("LIVE");
                   setHistoryData(null);
                 }}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all flex items-center gap-1 ${
                   view === "LIVE"
                     ? "bg-white text-slate-900 shadow"
                     : !gameInProgress
@@ -1030,12 +1030,13 @@ export default function App() {
                       : "text-slate-400 hover:text-white"
                 }`}
               >
+                {!gameInProgress && <Lock size={12} />}
                 Live
               </button>
               <button
                 disabled={!gameInProgress && !historyData}
                 onClick={() => setView("STATS")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${
+                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all flex items-center gap-1 ${
                   view === "STATS"
                     ? "bg-white text-slate-900 shadow"
                     : !gameInProgress && !historyData
@@ -1043,6 +1044,7 @@ export default function App() {
                       : "text-slate-400 hover:text-white"
                 }`}
               >
+                {!gameInProgress && !historyData && <Lock size={12} />}
                 Report
               </button>
               <button
