@@ -4,7 +4,7 @@ import {
   UserPlus,
   Play,
   Pencil,
-  Trophy,
+  Activity,
   Calendar,
   CloudDownload,
   Save,
@@ -113,7 +113,7 @@ export default function SetupView({
           {/* LEAGUE / TOURNAMENT INPUT */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
-              <Trophy size={12} className="inline mr-1" /> League / Tournament
+              <Activity size={12} className="inline mr-1" /> League / Tournament
               {setupAttempted && !teamMeta.league.trim() && (
                 <span className="text-red-500 animate-pulse">*</span>
               )}

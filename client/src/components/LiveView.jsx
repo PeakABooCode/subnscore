@@ -5,7 +5,7 @@ import {
   RotateCcw,
   Users,
   AlertCircle,
-  Trophy,
+  Activity,
   History,
   Clock,
 } from "lucide-react";
@@ -53,7 +53,7 @@ export default function LiveView({
               {teamMeta.teamName || "HOME TEAM"}
             </span>
             <div className="flex items-center gap-2">
-              <Trophy size={20} className="text-amber-500 hidden sm:block" />
+              <Activity size={20} className="text-amber-400 hidden sm:block" />
               <span className="text-3xl md:text-5xl font-black">
                 {teamTotalScore}
               </span>

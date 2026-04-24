@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Calendar, Users, ChevronRight, Trophy } from "lucide-react";
+import { Calendar, Users, ChevronRight, Activity } from "lucide-react";
 
 export default function HistoryView({ onViewGame }) {
   const [games, setGames] = useState([]);
@@ -45,9 +45,9 @@ export default function HistoryView({ onViewGame }) {
             >
               <div className="flex items-center gap-4 text-left">
                 <div className="bg-slate-100 p-3 rounded-lg group-hover:bg-blue-50 transition-colors">
-                  <Trophy
+                  <Activity
                     size={20}
-                    className="text-slate-400 group-hover:text-blue-600"
+                    className="text-slate-400 group-hover:text-amber-400"
                   />
                 </div>
                 <div>
