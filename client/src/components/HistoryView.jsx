@@ -7,6 +7,7 @@ import {
   Activity,
   Trash2,
   Search,
+  X,
 } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 
@@ -16,6 +17,8 @@ export default function HistoryView({ onViewGame }) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [gameToDelete, setGameToDelete] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     const fetchGames = async () => {
@@ -50,10 +53,25 @@ export default function HistoryView({ onViewGame }) {
 
   const filteredGames = games.filter((g) => {
     const search = searchTerm.toLowerCase().trim();
-    return (
+    const gameDate = new Date(g.game_date);
+
+    const matchesSearch =
       g.opponent_name?.toLowerCase().includes(search) ||
-      g.team_name?.toLowerCase().includes(search)
-    );
+      g.team_name?.toLowerCase().includes(search);
+
+    let matchesDate = true;
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      matchesDate = matchesDate && gameDate >= start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = matchesDate && gameDate <= end;
+    }
+
+    return matchesSearch && matchesDate;
   });
 
   if (loading)
@@ -81,6 +99,44 @@ export default function HistoryView({ onViewGame }) {
         </div>
       </div>
 
+      {/* Date Range Filters */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-end gap-4">
+        <div className="flex-1 min-w-[140px]">
+          <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+            From Date
+          </label>
+          <input
+            type="date"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 transition-all text-sm font-bold"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+        </div>
+        <div className="flex-1 min-w-[140px]">
+          <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+            To Date
+          </label>
+          <input
+            type="date"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-blue-500 transition-all text-sm font-bold"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+        </div>
+        {(startDate || endDate || searchTerm) && (
+          <button
+            onClick={() => {
+              setStartDate("");
+              setEndDate("");
+              setSearchTerm("");
+            }}
+            className="px-4 py-2 text-xs font-black uppercase text-red-500 hover:bg-red-50 rounded-lg transition-all flex items-center gap-2 shrink-0 border border-transparent hover:border-red-100"
+          >
+            <X size={14} /> Clear Filters
+          </button>
+        )}
+      </div>
+
       {games.length === 0 ? (
         <div className="bg-white p-12 rounded-2xl border-2 border-dashed border-slate-200 text-center">
           <p className="text-slate-400 font-bold">
@@ -92,7 +148,7 @@ export default function HistoryView({ onViewGame }) {
           {filteredGames.length === 0 ? (
             <div className="bg-slate-100 p-8 rounded-2xl text-center">
               <p className="text-slate-500 font-bold italic">
-                No games match your search "{searchTerm}"
+                No games match your current filters.
               </p>
             </div>
           ) : (
