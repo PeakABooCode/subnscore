@@ -792,9 +792,18 @@ export default function App() {
     });
 
     if (type === "fouls") {
+      const currentFouls = teamFouls[quarter] || 0;
+      const nextFouls = currentFouls + amount;
+
+      if (nextFouls === 4) {
+        showNotification("Team at 4 fouls - WARNING: Next foul is Penalty!");
+      } else if (nextFouls >= 5 && currentFouls < 5) {
+        showNotification("TEAM IN PENALTY!");
+      }
+
       setTeamFouls((prev) => ({
         ...prev,
-        [quarter]: (prev[quarter] || 0) + 1,
+        [quarter]: nextFouls,
       }));
       setIsRunning(false);
     }
