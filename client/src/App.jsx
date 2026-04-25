@@ -435,9 +435,24 @@ export default function App() {
       return showNotification("Add players to save roster!");
 
     try {
+      // Final de-duplication and cleaning before saving to database
+      const uniqueRoster = [];
+      const seen = new Set();
+
+      roster.forEach((p) => {
+        const key = `${p.jersey.toString().trim()}-${p.name.trim().toLowerCase()}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueRoster.push({
+            name: p.name.trim(),
+            jersey: p.jersey.toString().trim(),
+          });
+        }
+      });
+
       await axios.post("/api/teams/roster", {
         teamName: teamMeta.teamName,
-        roster: roster,
+        roster: uniqueRoster,
       });
       showNotification("Permanent roster saved!");
     } catch (err) {

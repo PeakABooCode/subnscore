@@ -57,12 +57,23 @@ export const saveGameSession = async (req, res) => {
     const playerMap = {}; // Maps frontend temporary IDs to Database UUIDs
 
     for (const player of roster) {
-      const pResult = await pool.query(
-        `INSERT INTO players (team_id, name, jersey_number) 
-         VALUES ($1, $2, $3) RETURNING id`,
+      // Check if player already exists in this team to prevent duplication
+      let pResult = await pool.query(
+        "SELECT id FROM players WHERE team_id = $1 AND name = $2 AND jersey_number = $3",
         [teamId, player.name, player.jersey],
       );
-      const dbPlayerId = pResult.rows[0].id;
+
+      let dbPlayerId;
+      if (pResult.rows.length > 0) {
+        dbPlayerId = pResult.rows[0].id;
+      } else {
+        const insertRes = await pool.query(
+          "INSERT INTO players (team_id, name, jersey_number) VALUES ($1, $2, $3) RETURNING id",
+          [teamId, player.name, player.jersey],
+        );
+        dbPlayerId = insertRes.rows[0].id;
+      }
+
       playerMap[player.id] = dbPlayerId;
 
       const stats = playerStats[player.id] || {};

@@ -10,6 +10,7 @@ import {
   Save,
 } from "lucide-react";
 import EditPlayerModal from "./EditPlayerModal";
+import { capitalizeWords } from "../utils/helpers";
 
 export default function SetupView({
   user,
@@ -31,15 +32,6 @@ export default function SetupView({
 }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [playerToEdit, setPlayerToEdit] = useState(null);
-
-  const capitalizeWords = (str) => {
-    return str
-      .split(" ")
-      .map((word) =>
-        word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : "",
-      )
-      .join(" ");
-  };
 
   const onEditClick = (p) => {
     setPlayerToEdit(p);

@@ -24,14 +24,21 @@ export const saveRoster = async (req, res) => {
       teamId = newTeam.rows[0].id;
     }
 
-    // 2. Sync Roster (Clean slate approach for permanent roster management)
-    await pool.query("DELETE FROM players WHERE team_id = $1", [teamId]);
-
+    // 2. Sync Roster (Preserve existing IDs to keep historical stats linked)
     for (const player of roster) {
-      await pool.query(
-        "INSERT INTO players (team_id, name, jersey_number) VALUES ($1, $2, $3)",
+      // Check if player already exists in this team
+      const existingP = await pool.query(
+        "SELECT id FROM players WHERE team_id = $1 AND name = $2 AND jersey_number = $3",
         [teamId, player.name, player.jersey],
       );
+
+      if (existingP.rows.length === 0) {
+        // Only insert if they are truly new
+        await pool.query(
+          "INSERT INTO players (team_id, name, jersey_number) VALUES ($1, $2, $3)",
+          [teamId, player.name, player.jersey],
+        );
+      }
     }
 
     await pool.query("COMMIT");
