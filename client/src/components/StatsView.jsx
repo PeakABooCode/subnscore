@@ -26,6 +26,7 @@ export default function StatsView({
   resetGame,
   actionHistory = [],
   triggerSaveGame, // Prop to trigger save game modal from App.jsx
+  deleteAction, // Prop to delete specific action from App.jsx
   isHistory, // Prop to detect if we are viewing a past game
   historyQuarterStats, // New prop for pre-calculated quarter data
 }) {
@@ -573,6 +574,26 @@ export default function StatsView({
                               ? "Turnover"
                               : action.type}
                       </span>
+
+                      {/* Selective Deletion: Hide for substitutions and historical archives */}
+                      {!isHistory &&
+                        (action.type === "score" ||
+                          action.type === "fouls" ||
+                          action.type === "turnovers" ||
+                          action.type === "TIMEOUT") && (
+                          <button
+                            onClick={() => {
+                              // Because the list is reversed for display, we calculate the original index
+                              const originalIndex =
+                                actionHistory.length - 1 - idx;
+                              deleteAction(originalIndex);
+                            }}
+                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete Action"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                     </div>
                   </div>
                 );

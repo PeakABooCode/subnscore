@@ -838,6 +838,57 @@ export default function App() {
     showNotification("Undo successful.");
   };
 
+  const deleteAction = (index) => {
+    const action = actionHistory[index];
+    if (!action) return;
+
+    // 1. Revert player stats (Points, Fouls, Turnovers)
+    if (
+      action.playerId &&
+      (action.type === "score" ||
+        action.type === "fouls" ||
+        action.type === "turnovers")
+    ) {
+      setPlayerStats((prev) => {
+        const pStats = prev[action.playerId];
+        if (!pStats) return prev;
+        return {
+          ...prev,
+          [action.playerId]: {
+            ...pStats,
+            [action.type]: Math.max(
+              0,
+              (pStats[action.type] || 0) - (action.amount || 0),
+            ),
+          },
+        };
+      });
+
+      // 2. Revert team fouls specifically
+      if (action.type === "fouls") {
+        setTeamFouls((prev) => ({
+          ...prev,
+          [action.quarter]: Math.max(0, (prev[action.quarter] || 0) - 1),
+        }));
+      }
+    }
+
+    // 3. Handle Timeout Reversion
+    if (action.type === "TIMEOUT") {
+      setTimeouts((prev) =>
+        prev.filter(
+          (t) => !(t.quarter === action.quarter && t.clock === action.clock),
+        ),
+      );
+    }
+
+    // 4. Remove from action history array
+    const newHistory = [...actionHistory];
+    newHistory.splice(index, 1);
+    setActionHistory(newHistory);
+    showNotification("Action removed from history.");
+  };
+
   const advanceQuarter = (skipConfirm = false) => {
     const pName =
       quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
@@ -1246,6 +1297,7 @@ export default function App() {
               }
             }}
             triggerSaveGame={handleSaveGame}
+            deleteAction={deleteAction}
             isHistory={!!historyData}
             historyQuarterStats={historyData?.quarterStats}
           />
