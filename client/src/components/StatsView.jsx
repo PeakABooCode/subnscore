@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { formatTime, QUARTER_SECONDS } from "../utils/helpers";
+import {
+  formatTime,
+  QUARTER_SECONDS,
+  calculateLineupStats,
+} from "../utils/helpers";
 import {
   ClipboardList,
   Users,
@@ -9,6 +13,7 @@ import {
   CloudUpload,
   Activity,
   History,
+  Group, // For Lineups tab
 } from "lucide-react";
 
 export default function StatsView({
@@ -150,6 +155,16 @@ export default function StatsView({
     triggerSaveGame();
   };
 
+  // Calculate lineup stats
+  const lineupStats = calculateLineupStats(
+    // This will now return an array
+    roster,
+    stints,
+    actionHistory,
+    quarter,
+    clock,
+  );
+
   const quarterData = getQuarterAppearances();
   const dynamicQuartersArray = Array.from({ length: quarter }, (_, i) => i + 1);
 
@@ -232,6 +247,16 @@ export default function StatsView({
           }`}
         >
           <History size={18} /> Timeline
+        </button>
+        <button
+          onClick={() => setActiveTab("lineups")}
+          className={`flex-1 py-3 text-sm font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all ${
+            activeTab === "lineups"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
+          }`}
+        >
+          <Group size={18} /> Lineups
         </button>
       </div>
 
@@ -552,6 +577,73 @@ export default function StatsView({
                   </div>
                 );
               })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 6. TAB 4: LINEUP ANALYSIS */}
+      {activeTab === "lineups" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-slate-50 px-5 py-4 border-b border-slate-200">
+            <h3 className="font-black text-slate-800 flex items-center gap-2 uppercase tracking-wider text-sm">
+              <Group size={18} className="text-blue-600" /> Lineup Analysis
+            </h3>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto">
+            {lineupStats.length === 0 ? (
+              <div className="p-10 text-center text-slate-400 font-bold">
+                No 5-player lineups recorded yet.
+              </div>
+            ) : (
+              lineupStats.map((lineup, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50 transition-colors gap-2"
+                >
+                  <div className="flex flex-wrap gap-1">
+                    {lineup.players.map((p) => (
+                      <span
+                        key={p.id}
+                        className="bg-slate-100 text-slate-700 px-2 py-1 rounded-full text-xs font-bold"
+                      >
+                        #{p.jersey} {p.name}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex flex-col items-center">
+                      <span className="text-[8px] font-black uppercase text-slate-400">
+                        Time
+                      </span>
+                      <span className="text-sm font-black text-blue-600">
+                        {formatTime(lineup.totalTime)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[8px] font-black uppercase text-slate-400">
+                        Pts
+                      </span>
+                      <span className="text-sm font-black text-emerald-600">
+                        {lineup.pointsScored}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-[8px] font-black uppercase text-slate-400">
+                        Pts/Min
+                      </span>
+                      <span className="text-sm font-black text-slate-700">
+                        {lineup.totalTime > 0
+                          ? (
+                              lineup.pointsScored /
+                              (lineup.totalTime / 60)
+                            ).toFixed(1)
+                          : "0.0"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
