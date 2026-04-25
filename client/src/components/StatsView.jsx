@@ -429,6 +429,21 @@ export default function StatsView({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {dynamicQuartersArray.map((q) => {
             const playersInQuarter = quarterData[q] || [];
+
+            // Pasarelle Logic: Split players into segments for Q1-Q3
+            const isPasarelle = q <= 3;
+            const segment1Players = playersInQuarter.filter((id) => {
+              const qStats = getQuarterStats(id, q);
+              // Rough check: did they play in the first half of the quarter?
+              // For Pasarelle, stints usually start at 600
+              return stints.some(
+                (s) => s.playerId === id && s.quarter === q && s.clockIn > 300,
+              );
+            });
+            const segment2Players = playersInQuarter.filter(
+              (id) => !segment1Players.includes(id),
+            );
+
             return (
               <div
                 key={`qtr-${q}`}
@@ -444,6 +459,12 @@ export default function StatsView({
                 </div>
 
                 <div className="p-4 flex-1 bg-slate-50">
+                  {isPasarelle && playersInQuarter.length > 0 && (
+                    <div className="mb-2 text-[9px] font-black text-blue-500 uppercase tracking-widest text-center border-b border-blue-100 pb-1">
+                      Pasarelle Segments (1st 5 / 2nd 5)
+                    </div>
+                  )}
+
                   {playersInQuarter.length > 0 ? (
                     <div className="flex flex-col gap-2">
                       {playersInQuarter.map((id) => {
