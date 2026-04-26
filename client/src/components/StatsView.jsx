@@ -298,43 +298,47 @@ export default function StatsView({
       <div className="flex bg-slate-200 p-1 rounded-xl shadow-sm border border-slate-300">
         <button
           onClick={() => setActiveTab("boxscore")}
-          className={`flex-1 py-3 text-sm font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
             activeTab === "boxscore"
               ? "bg-white text-blue-600 shadow-sm"
               : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
           }`}
         >
-          <ClipboardList size={18} /> Box Score
+          <ClipboardList size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Box Score</span>
         </button>
         <button
           onClick={() => setActiveTab("quarters")}
-          className={`flex-1 py-3 text-sm font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
             activeTab === "quarters"
               ? "bg-white text-blue-600 shadow-sm"
               : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
           }`}
         >
-          <Clock size={18} /> Quarter Data
+          <Clock size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Quarters</span>
         </button>
         <button
           onClick={() => setActiveTab("timeline")}
-          className={`flex-1 py-3 text-sm font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
             activeTab === "timeline"
               ? "bg-white text-blue-600 shadow-sm"
               : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
           }`}
         >
-          <History size={18} /> Timeline
+          <History size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Timeline</span>
         </button>
         <button
           onClick={() => setActiveTab("lineups")}
-          className={`flex-1 py-3 text-sm font-black uppercase tracking-widest rounded-lg flex items-center justify-center gap-2 transition-all ${
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
             activeTab === "lineups"
               ? "bg-white text-blue-600 shadow-sm"
               : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
           }`}
         >
-          <Group size={18} /> Lineups
+          <Group size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Lineups</span>
         </button>
       </div>
 
