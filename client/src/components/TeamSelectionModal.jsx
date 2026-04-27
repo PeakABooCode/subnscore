@@ -28,9 +28,9 @@ export default function TeamSelectionModal({
           </div>
         ) : (
           <div className="overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-            {teams.map((t, idx) => (
+            {teams.map((t) => (
               <button
-                key={idx}
+                key={t.id}
                 onClick={() => onSelect(t)}
                 className="w-full text-left p-4 rounded-xl border border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all group"
               >

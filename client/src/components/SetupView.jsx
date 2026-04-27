@@ -216,74 +216,47 @@ export default function SetupView({
             Select Game Format:
           </p>
           <div className="grid grid-cols-1 gap-2">
-            <button
-              onClick={() => setGameMode("FULL")}
-              className={`p-4 rounded-xl border-2 text-left transition-all flex items-center justify-between ${
-                gameMode === "FULL"
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-100 hover:border-slate-200"
-              }`}
-            >
-              <div className="min-w-0">
-                <div
-                  className={`font-black uppercase text-sm ${gameMode === "FULL" ? "text-blue-700" : "text-slate-700"}`}
-                >
-                  Full Pasarelle
+            {[
+              {
+                id: "FULL",
+                title: "Full Pasarelle",
+                desc: "Auto-pause at 5:00 for Q1, Q2, and Q3.",
+              },
+              {
+                id: "HALF",
+                title: "Half Pasarelle",
+                desc: "Auto-pause at 5:00 for Q1 and Q2 only.",
+              },
+              {
+                id: "OPEN",
+                title: "Standard / Open",
+                desc: "No automatic pauses. Quarters run full duration.",
+              },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setGameMode(mode.id)}
+                className={`p-4 rounded-xl border-2 text-left transition-all flex items-center justify-between ${
+                  gameMode === mode.id
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-slate-100 hover:border-slate-200"
+                }`}
+              >
+                <div className="min-w-0">
+                  <div
+                    className={`font-black uppercase text-sm ${gameMode === mode.id ? "text-blue-700" : "text-slate-700"}`}
+                  >
+                    {mode.title}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-bold">
+                    {mode.desc}
+                  </div>
                 </div>
-                <div className="text-[10px] text-slate-500 font-bold">
-                  Auto-pause at 5:00 for Q1, Q2, and Q3.
-                </div>
-              </div>
-              {gameMode === "FULL" && (
-                <Zap size={20} className="text-blue-500 fill-blue-500" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setGameMode("HALF")}
-              className={`p-4 rounded-xl border-2 text-left transition-all flex items-center justify-between ${
-                gameMode === "HALF"
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-100 hover:border-slate-200"
-              }`}
-            >
-              <div className="min-w-0">
-                <div
-                  className={`font-black uppercase text-sm ${gameMode === "HALF" ? "text-blue-700" : "text-slate-700"}`}
-                >
-                  Half Pasarelle
-                </div>
-                <div className="text-[10px] text-slate-500 font-bold">
-                  Auto-pause at 5:00 for Q1 and Q2 only.
-                </div>
-              </div>
-              {gameMode === "HALF" && (
-                <Zap size={20} className="text-blue-500 fill-blue-500" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setGameMode("OPEN")}
-              className={`p-4 rounded-xl border-2 text-left transition-all flex items-center justify-between ${
-                gameMode === "OPEN"
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-100 hover:border-slate-200"
-              }`}
-            >
-              <div className="min-w-0">
-                <div
-                  className={`font-black uppercase text-sm ${gameMode === "OPEN" ? "text-blue-700" : "text-slate-700"}`}
-                >
-                  Standard / Open
-                </div>
-                <div className="text-[10px] text-slate-500 font-bold">
-                  No automatic pauses. Quarters run full duration.
-                </div>
-              </div>
-              {gameMode === "OPEN" && (
-                <Zap size={20} className="text-blue-500 fill-blue-500" />
-              )}
-            </button>
+                {gameMode === mode.id && (
+                  <Zap size={20} className="text-blue-500 fill-blue-500" />
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>

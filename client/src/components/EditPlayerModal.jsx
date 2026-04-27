@@ -21,7 +21,11 @@ export default function EditPlayerModal({ player, isOpen, onClose, onSave }) {
       ? editedJersey.replace(/[^0-9]/g, "")
       : player.jersey;
 
-    onSave(player.id, { name: finalName, jersey: finalJersey });
+    onSave(player.id, {
+      name: finalName,
+      jersey: finalJersey,
+      dbId: player.dbId,
+    }); // Pass dbId to ensure stable update
     onClose();
   };
 

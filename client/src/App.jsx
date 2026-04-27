@@ -15,6 +15,7 @@ import {
   QUARTER_SECONDS,
   hydrateActions,
   dehydrateActions,
+  formatTime,
 } from "./utils/helpers";
 
 axios.defaults.withCredentials = true;
@@ -37,6 +38,16 @@ export default function App() {
     }
   });
   const [pendingSwapIds, setPendingSwapIds] = useState([]);
+
+  // Explicit snapshots of lineups at the start/end of each quarter
+  const [lineupsByQuarter, setLineupsByQuarter] = useState(() => {
+    try {
+      const saved = localStorage.getItem("subnscore_lineups");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
 
   const [gameMode, setGameMode] = useState(() => {
     return localStorage.getItem("subnscore_gameMode") || "FULL"; // FULL, HALF, OPEN
@@ -246,6 +257,10 @@ export default function App() {
     if (!isLoaded.current) return;
     localStorage.setItem("subnscore_timeouts", JSON.stringify(timeouts));
   }, [timeouts]);
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    localStorage.setItem("subnscore_lineups", JSON.stringify(lineupsByQuarter));
+  }, [lineupsByQuarter]);
   useEffect(() => {
     if (!isLoaded.current) return;
     if (historyData) {
@@ -481,28 +496,90 @@ export default function App() {
       return showNotification("Add players to save roster!");
 
     try {
-      // Final de-duplication and cleaning before saving to database
-      const uniqueRoster = [];
-      const seen = new Set();
+      // Send current roster with their frontend IDs and existing dbIds for Upsert logic
+      const rosterToSave = roster.map((p) => ({
+        id: p.id, // Frontend's temporary ID
+        dbId: p.dbId, // Database ID if already exists
+        name: p.name.trim(),
+        jersey: p.jersey.toString().trim(),
+      }));
 
-      roster.forEach((p) => {
-        const key = `${p.jersey.toString().trim()}-${p.name.trim().toLowerCase()}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          uniqueRoster.push({
-            name: p.name.trim(),
-            jersey: p.jersey.toString().trim(),
-          });
+      const res = await axios.post("/api/teams/roster", {
+        teamName: teamMeta.teamName,
+        roster: rosterToSave,
+        league: teamMeta.league,
+        season: teamMeta.season,
+      });
+
+      if (!res.data?.roster || !Array.isArray(res.data.roster)) {
+        throw new Error("Invalid response from server");
+      }
+
+      // Update the local roster state with the new/updated players from the backend.
+      const savedRoster = res.data.roster.map((p) => ({
+        id: p.id,
+        dbId: p.id,
+        name: (p.name || "").trim(),
+        jersey: (p.jersey || p.jersey_number || "").toString().trim(),
+      }));
+
+      // RECONCILIATION: If a game is in progress, we must map old temp IDs to new DB UUIDs
+      // to prevent losing current stats, stints, or court placement.
+      const idMap = {}; // oldId -> newUuid
+      savedRoster.forEach((newP) => {
+        const matchingOld = roster.find(
+          (oldP) =>
+            oldP.name.trim().toLowerCase() === newP.name.toLowerCase() &&
+            oldP.jersey.toString().trim() === newP.jersey,
+        );
+        if (matchingOld) idMap[matchingOld.id] = newP.id;
+      });
+
+      // Update all dependent states with new IDs
+      setPlayerStats((prev) => {
+        const next = {};
+        Object.keys(prev).forEach((oldId) => {
+          const newId = idMap[oldId] || oldId;
+          next[newId] = prev[oldId];
+        });
+        return next;
+      });
+
+      setCourt((prev) => prev.map((oldId) => idMap[oldId] || oldId));
+
+      setStints((prev) =>
+        prev.map((stint) => ({
+          ...stint,
+          playerId: idMap[stint.playerId] || stint.playerId,
+        })),
+      );
+
+      setActionHistory((prev) =>
+        prev.map((action) => ({
+          ...action,
+          playerId: action.playerId
+            ? idMap[action.playerId] || action.playerId
+            : action.playerId,
+        })),
+      );
+
+      setPendingSwapIds((prev) => prev.map((oldId) => idMap[oldId] || oldId));
+
+      // Defensive unique-ification: Ensure no duplicate IDs enter the state
+      const uniqueSavedRoster = [];
+      const seenIds = new Set();
+      savedRoster.forEach((p) => {
+        if (!seenIds.has(p.id)) {
+          uniqueSavedRoster.push(p);
+          seenIds.add(p.id);
         }
       });
 
-      await axios.post("/api/teams/roster", {
-        teamName: teamMeta.teamName,
-        roster: uniqueRoster,
-      });
+      setRoster(uniqueSavedRoster);
+
       showNotification("Permanent roster saved!");
     } catch (err) {
-      console.error("Save Roster Error:", err.response);
+      console.error("Save Roster Error:", err);
       if (err.response?.status === 401) {
         setView("AUTH");
         showNotification("Session expired. Please log in.");
@@ -520,55 +597,102 @@ export default function App() {
       const res = await axios.get(
         `/api/teams/roster/${encodeURIComponent(teamMeta.teamName)}`,
       );
+
+      if (!res.data || !Array.isArray(res.data)) {
+        return showNotification("Invalid data received from server.");
+      }
+
       if (!res.data || !Array.isArray(res.data) || res.data.length === 0)
         return showNotification("No saved roster found.");
 
-      // 1. Map players from DB to stable IDs
+      // 1. Map players from DB to stable IDs and normalize their data and normalize their data and normalize their data and normalize their data and normalize their data and normalize their data
       const loadedFromDB = res.data
         .filter((p) => p && typeof p === "object")
         .map((p) => ({
           ...p,
-          id: p.id ? p.id.toString() : Date.now().toString() + Math.random(),
+          id: p.id, // Database UUID serves as the stable identifier
+          dbId: p.id,
           name: (p.name || "").trim(),
           jersey: (p.jersey || p.jersey_number || "").toString().trim(),
         }));
 
-      // 2. PRESERVE MANUAL PLAYERS: Identify players currently in roster but missing from DB
-      const manualAdditions = roster.filter(
-        (currentP) =>
-          currentP &&
-          !loadedFromDB.some(
-            (dbP) =>
-              dbP.name.toLowerCase() === currentP.name.trim().toLowerCase() &&
-              dbP.jersey === currentP.jersey.toString().trim(),
-          ),
+      // Create lookup maps for DB players
+      const dbPlayersById = new Map(loadedFromDB.map((p) => [p.id, p]));
+      const dbPlayersByNameJersey = new Map(
+        loadedFromDB.map((p) => [`${p.name.toLowerCase()}-${p.jersey}`, p]),
       );
 
-      const combinedRoster = [...loadedFromDB, ...manualAdditions];
-      const loadedPlayerIds = new Set(combinedRoster.map((p) => p.id));
+      const finalRoster = [];
+      const processedDbIds = new Set(); // To track which DB players have been added to finalRoster
+      const oldIdToNewIdMap = {}; // Map old local IDs to new reconciled IDs
+
+      // First, iterate through the current local roster to handle existing players and local edits
+      roster.forEach((localP) => {
+        if (!localP) return;
+
+        let reconciledPlayer = null;
+
+        // Attempt 1: Match by dbId (if the local player still has one)
+        if (localP.dbId && dbPlayersById.has(localP.dbId)) {
+          reconciledPlayer = dbPlayersById.get(localP.dbId);
+        } else {
+          // Attempt 2: If dbId is null (locally edited) or not found, try to match by current name+jersey
+          const identityKey = `${localP.name.toLowerCase()}-${localP.jersey}`;
+          if (dbPlayersByNameJersey.has(identityKey)) {
+            reconciledPlayer = dbPlayersByNameJersey.get(identityKey);
+          }
+        }
+
+        if (reconciledPlayer) {
+          // If a match is found, use the DB version, ensuring its ID is the DB ID
+          finalRoster.push({
+            ...reconciledPlayer,
+            id: reconciledPlayer.id,
+            dbId: reconciledPlayer.id,
+          });
+          processedDbIds.add(reconciledPlayer.id);
+          oldIdToNewIdMap[localP.id] = reconciledPlayer.id; // Map old local ID to new DB ID
+        } else {
+          // If no match in DB, it's either a truly new local player (temp-ID) or a player
+          // that was in the DB but has since been deleted from the DB (unlikely). Keep it as is.
+          finalRoster.push({ ...localP, dbId: localP.dbId || null });
+          oldIdToNewIdMap[localP.id] = localP.id; // Keep old ID if no reconciliation
+        }
+      });
+
+      // Add any players from the DB that were not in the local roster (newly added to DB by another client, or if local roster was empty)
+      loadedFromDB.forEach((dbP) => {
+        if (!processedDbIds.has(dbP.id)) {
+          finalRoster.push(dbP);
+        }
+      });
+
+      // Ensure uniqueness by ID in the final roster before setting state
+      const uniqueFinalRoster = [];
+      const seenIds = new Set();
+      finalRoster.forEach((p) => {
+        if (!seenIds.has(p.id)) {
+          uniqueFinalRoster.push(p);
+          seenIds.add(p.id);
+        }
+      });
+
+      const combinedPlayerIds = new Set(uniqueFinalRoster.map((p) => p.id));
 
       // 3. Intelligent Data Reconciliation
       setPlayerStats((prevStats) => {
         const nextStats = {};
-        // Map old roster to help reconciliation by identity
-        const oldRosterMap = roster.reduce((acc, p) => {
-          if (!p || !p.id) return acc;
-          return {
-            ...acc,
-            [p.id]: `${p.jersey.toString().trim()}-${p.name.trim().toLowerCase()}`,
-          };
-        }, {});
+        // Map Identity (Name-Jersey) -> ID for local reconciliation fallback
+        // This map is now less critical as oldIdToNewIdMap handles direct ID mapping
 
-        combinedRoster.forEach((p) => {
+        uniqueFinalRoster.forEach((p) => {
           if (!p) return;
-          const key = `${p.jersey}-${p.name.toLowerCase()}`;
-          // Find if this player existed (by ID or by Identity)
-          const prevId = Object.keys(prevStats).find(
-            (id) => id === p.id || oldRosterMap[id] === key,
+          // Try to find stats for the old local ID that mapped to this new ID
+          const oldLocalId = Object.keys(oldIdToNewIdMap).find(
+            (key) => oldIdToNewIdMap[key] === p.id,
           );
-
-          if (prevId && prevStats[prevId]) {
-            nextStats[p.id] = prevStats[prevId];
+          if (oldLocalId && prevStats[oldLocalId]) {
+            nextStats[p.id] = prevStats[oldLocalId];
           } else {
             nextStats[p.id] = { score: 0, fouls: 0, turnovers: 0 };
           }
@@ -576,63 +700,33 @@ export default function App() {
         return nextStats;
       });
 
-      // Update stints and action history to use new IDs if they matched by identity
-      // This is crucial for Quarter Data and Timeline reports
-      setStints((prevStints) => {
-        return prevStints
-          .map((s) => {
-            const oldP = roster.find((r) => r.id === s.playerId);
-            if (!oldP) return s;
-            const newP = combinedRoster.find(
-              (r) =>
-                r.name.toLowerCase() === oldP.name.trim().toLowerCase() &&
-                r.jersey === oldP.jersey.toString().trim(),
-            );
-            return newP ? { ...s, playerId: newP.id } : s;
-          })
-          .filter((s) => loadedPlayerIds.has(s.playerId));
-      });
+      // Helper to map old IDs to new UUIDs across stints and history
+      const updateIdInDependentState = (item) => {
+        const newId = oldIdToNewIdMap[item.playerId || item.id];
+        if (newId) {
+          return { ...item, playerId: newId, id: newId };
+        }
+        return item; // If no mapping, keep original ID
+      };
 
-      setActionHistory((prevActions) => {
-        return prevActions
-          .map((a) => {
-            if (!a.playerId) return a;
-            const oldP = roster.find((r) => r.id === a.playerId);
-            if (!oldP) return a;
-            const newP = combinedRoster.find(
-              (r) =>
-                r.name.toLowerCase() === oldP.name.trim().toLowerCase() &&
-                r.jersey === oldP.jersey.toString().trim(),
-            );
-            return newP ? { ...a, playerId: newP.id } : a;
-          })
-          .filter((a) => !a.playerId || loadedPlayerIds.has(a.playerId));
-      });
+      setStints((prev) =>
+        prev // Use the oldIdToNewIdMap for direct ID translation
+          .map(updateIdInDependentState)
+          .filter((s) => combinedPlayerIds.has(s.playerId)),
+      );
+      setActionHistory((prev) =>
+        prev // Use the oldIdToNewIdMap for direct ID translation
+          .map(updateIdInDependentState)
+          .filter((a) => !a.playerId || combinedPlayerIds.has(a.playerId)),
+      );
 
-      setRoster(combinedRoster);
+      setRoster(uniqueFinalRoster);
 
-      // Sync court to ensure no "ghost" IDs exist
+      // Sync active court to ensure IDs transition to UUIDs and filter out orphaned players
       setCourt((prev) =>
         prev
-          .filter((id) => {
-            const oldP = roster.find((r) => r.id === id);
-            return (
-              oldP &&
-              combinedRoster.some(
-                (r) =>
-                  r.name.toLowerCase() === oldP.name.trim().toLowerCase() &&
-                  r.jersey === oldP.jersey.toString().trim(),
-              )
-            );
-          })
-          .map((id) => {
-            const oldP = roster.find((r) => r.id === id);
-            return combinedRoster.find(
-              (r) =>
-                r.name.toLowerCase() === oldP.name.trim().toLowerCase() &&
-                r.jersey === oldP.jersey.toString().trim(),
-            )?.id;
-          }),
+          .map((oldId) => oldIdToNewIdMap[oldId] || oldId)
+          .filter((id) => uniqueFinalRoster.some((p) => p.id === id)),
       );
 
       setView("SETUP");
@@ -657,8 +751,9 @@ export default function App() {
       );
     }
 
-    const id = Date.now().toString();
-    setRoster([...roster, { ...newPlayer, id }]);
+    // Assign a temporary frontend ID. dbId will be null until saved to cloud.
+    const id = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    setRoster([...roster, { ...newPlayer, id, dbId: null }]);
     setPlayerStats({
       ...playerStats,
       [id]: { score: 0, fouls: 0, turnovers: 0 },
@@ -667,7 +762,25 @@ export default function App() {
   };
 
   const handleEditPlayer = (id, updates) => {
-    setRoster(roster.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    // Check for jersey duplicates if the jersey is being updated
+    if (updates.jersey) {
+      const isDuplicate = roster.some(
+        (p) =>
+          p.id !== id &&
+          p.jersey.toString().trim() === updates.jersey.toString().trim(),
+      );
+      if (isDuplicate) {
+        return showNotification(`Jersey #${updates.jersey} is already in use.`);
+      }
+    }
+
+    setRoster(
+      roster.map((p) =>
+        p.id === id
+          ? { ...p, ...updates, dbId: null } // Mark as unsynced if edited
+          : p,
+      ),
+    );
   };
 
   const startGame = () => {
@@ -782,18 +895,51 @@ export default function App() {
     const onCourtSelected = nextSelected.filter((id) => court.includes(id));
     const onBenchSelected = nextSelected.filter((id) => !court.includes(id));
 
-    // If we have a balanced selection (e.g., 1 for 1, 5 for 5)
-    if (
-      onCourtSelected.length === onBenchSelected.length &&
-      onCourtSelected.length > 0
-    ) {
+    // TRANSACTION LOGIC:
+    // A. Standard balanced swap (1 for 1, 2 for 2, etc.)
+    const isBalancedSwap =
+      onCourtSelected.length > 0 &&
+      onCourtSelected.length === onBenchSelected.length;
+    // B. Initial/Quarterly lineup selection (Court is empty, picking 5 from bench)
+    const isInitialLineup = court.length === 0 && onBenchSelected.length === 5;
+
+    if (isInitialLineup) {
+      const newStints = [...stints];
+      const newCourt = []; // Start with an empty court for this scenario
+      const newActions = [...actionHistory];
+
+      onBenchSelected.forEach((pIn) => {
+        newStints.push({
+          id: Math.random().toString(),
+          playerId: pIn,
+          quarter,
+          clockIn: clock,
+          clockOut: null,
+        });
+        newCourt.push(pIn);
+        newActions.push({ type: "SUB_IN", playerId: pIn, clock, quarter });
+      });
+
+      // Capture snapshot if this is the first lineup of the quarter
+      setLineupsByQuarter((prev) => ({
+        ...prev,
+        [quarter]: onBenchSelected,
+      }));
+
+      setStints(newStints);
+      setCourt(newCourt);
+      setActionHistory(newActions);
+      setPendingSwapIds([]);
+      showNotification(
+        `Subbed ${onBenchSelected.length} players onto the court!`,
+      );
+    } else if (isBalancedSwap) {
       const newStints = [...stints];
       const newCourt = [...court];
       const newActions = [...actionHistory];
 
       onCourtSelected.forEach((pOut, index) => {
         const pIn = onBenchSelected[index];
-
         // 1. Close stint for player going out
         newStints.forEach((s, i) => {
           if (s.playerId === pOut && s.clockOut === null) {
@@ -820,12 +966,11 @@ export default function App() {
           { type: "SUB_OUT", playerId: pOut, clock, quarter },
         );
       });
-
       setStints(newStints);
       setCourt(newCourt);
       setActionHistory(newActions);
       setPendingSwapIds([]);
-      showNotification(`Subbed ${onCourtSelected.length} players!`);
+      showNotification(`Subbed ${onCourtSelected.length} players!`); // This will be 0 for initial lineup
     } else {
       setPendingSwapIds(nextSelected);
     }
@@ -975,21 +1120,31 @@ export default function App() {
     // Strictly check for 'true' to ensure the modal is triggered.
     if (skipConfirm !== true) return setIsAdvanceQuarterConfirmOpen(true);
 
+    // ✅ SAVE CURRENT LINEUP SNAPSHOT BEFORE CLEARING
+    setLineupsByQuarter((prev) => ({
+      ...prev,
+      [quarter]: [...court],
+    }));
+
+    // 1. Close current stints and record SUB_OUT actions for the logs
+    const currentCourtPlayers = [...court];
     const updatedStints = stints.map((s) =>
       s.clockOut === null ? { ...s, clockOut: clock } : s,
     );
+
+    const closingActions = currentCourtPlayers.map((pId) => ({
+      type: "SUB_OUT",
+      playerId: pId,
+      clock,
+      quarter,
+    }));
+
     const nextQ = quarter + 1;
 
-    setStints([
-      ...updatedStints,
-      ...court.map((id) => ({
-        id: Math.random().toString(),
-        playerId: id,
-        quarter: nextQ,
-        clockIn: QUARTER_SECONDS,
-        clockOut: null,
-      })),
-    ]);
+    setStints(updatedStints); // No "next quarter" stints yet - court is empty
+    setCourt([]); // CLEAR THE COURT PERMANENTLY ON ADVANCE
+    setPendingSwapIds([]);
+    setActionHistory((prev) => [...prev, ...closingActions]);
 
     setQuarter(nextQ);
     setClock(QUARTER_SECONDS);
@@ -1011,6 +1166,12 @@ export default function App() {
       .filter((a) => a.type === "opp_score")
       .reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
+    // Ensure the final quarter's lineup is snapshotted before payload creation
+    const finalLineups = {
+      ...lineupsByQuarter,
+      [quarter]: [...court],
+    };
+
     try {
       // Final Minutes and Seconds Calculation for the DB columns
       const finalRosterWithMins = roster.map((player) => {
@@ -1018,22 +1179,15 @@ export default function App() {
         stints
           .filter((s) => s.playerId === player.id)
           .forEach((s) => {
-            const out =
-              s.clockOut !== null
-                ? s.clockOut
-                : s.quarter === quarter
-                  ? clock
-                  : 0; // Fallback: Played to the end of the quarter
+            const out = s.clockOut !== null ? s.clockOut : clock;
             totalSeconds += s.clockIn - out;
           });
 
-        const mins = Math.floor(totalSeconds / 60);
-        const secs = totalSeconds % 60;
-        const formattedMins = `${mins}:${secs.toString().padStart(2, "0")}`;
-
         return {
           ...player,
-          calculatedMins: formattedMins,
+          name: (player.name || "").trim(),
+          jersey: (player.jersey || "").toString().trim(),
+          calculatedMins: formatTime(totalSeconds),
           rawSeconds: totalSeconds,
         };
       });
@@ -1046,12 +1200,7 @@ export default function App() {
           stints
             .filter((s) => s.playerId === p.id && s.quarter === q)
             .forEach((s) => {
-              const out =
-                s.clockOut !== null
-                  ? s.clockOut
-                  : s.quarter === quarter
-                    ? clock
-                    : 0;
+              const out = s.clockOut !== null ? s.clockOut : clock;
               qSecs += s.clockIn - out;
             });
 
@@ -1101,15 +1250,18 @@ export default function App() {
         timeouts,
         finalScoreUs: teamScore,
         finalScoreThem: oppScore,
+        finalClock: clock,
+        quarter: quarter,
+        lineupsByQuarter: finalLineups, // Send to backend
       };
 
-      await axios.post("/api/games/save", payload);
+      const res = await axios.post("/api/games/save", payload);
       showNotification("Game saved to cloud!");
 
       // Pass 'true' to force reset everything (including textboxes) without a second prompt
       resetGame(true);
     } catch (err) {
-      console.error("Save Error:", err.response);
+      console.error("Save Error:", err);
       const msg =
         err.response?.status === 429
           ? "Slow down, Coach! Too many save attempts. Try again in a minute."
@@ -1121,7 +1273,14 @@ export default function App() {
   const loadGameFromHistory = async (gameId) => {
     try {
       const res = await axios.get(`/api/games/${gameId}`);
-      const { game, stats, logs } = res.data;
+      const {
+        game,
+        stats,
+        logs,
+        quarterStats,
+        substitutionLogs,
+        lineupsByQuarter: savedLineups,
+      } = res.data;
 
       const historicalRoster = stats.map((s) => ({
         id: s.player_id,
@@ -1146,17 +1305,116 @@ export default function App() {
         quarter: l.quarter,
         clock: Number(l.time_remaining),
       }));
+      const historicalLineups = savedLineups || {};
+
+      // RECONSTRUCT STINTS from substitution logs
+      const reconstructedStints = [];
+      const rawSubs = substitutionLogs || [];
+      const hQuarterStats = quarterStats || [];
+
+      // Loop through each quarter to build stints
+      for (let q = 1; q <= (game.quarter || 4); q++) {
+        const qLogs = rawSubs.filter((l) => l.quarter === q);
+
+        // IMPROVEMENT: Find players by checking stats OR actions OR direct sub logs
+        const statsPlayers = hQuarterStats
+          .filter((qs) => qs.quarter === q)
+          .map((qs) => qs.player_id || qs.playerId);
+        const logPlayers = historicalActions
+          .filter((a) => a.quarter === q && a.playerId)
+          .map((a) => a.playerId);
+        const subPlayers = qLogs.map((l) => l.player_id || l.playerId);
+
+        const playersInQ = Array.from(
+          new Set([...statsPlayers, ...logPlayers, ...subPlayers]),
+        );
+
+        playersInQ.forEach((pId) => {
+          const pLogs = qLogs
+            .filter((l) => (l.player_id || l.playerId) === pId)
+            .sort((a, b) => b.time_remaining - a.time_remaining); // Chronological start to end
+
+          let lastIn = null;
+
+          // If they played but no IN log at 10:00, or first log is OUT, they started the quarter
+          if (
+            pLogs.length === 0 ||
+            pLogs[0].action_type !== "IN" ||
+            Number(pLogs[0].time_remaining) < QUARTER_SECONDS
+          ) {
+            lastIn = QUARTER_SECONDS;
+          }
+
+          pLogs.forEach((log) => {
+            const time = Number(log.time_remaining);
+            if (log.action_type === "IN") {
+              lastIn = time;
+            } else if (log.action_type === "OUT") {
+              reconstructedStints.push({
+                id: `hist-${q}-${pId}-${time}`,
+                playerId: pId,
+                quarter: q,
+                clockIn: lastIn !== null ? lastIn : QUARTER_SECONDS,
+                clockOut: time,
+              });
+              lastIn = null;
+            }
+          });
+
+          // If still marked as IN, they played to the end of the quarter
+          if (lastIn !== null) {
+            // Use the actual seconds_played from the DB to find the exact exit time
+            const qStat = hQuarterStats.find(
+              (qs) =>
+                (qs.player_id === pId || qs.playerId === pId) &&
+                Number(qs.quarter) === q,
+            );
+
+            const totalSecsInQ = qStat
+              ? Number(qStat.seconds_played || qStat.secondsPlayed || 0)
+              : 0;
+
+            // Account for any mid-quarter subs already processed
+            const accounted = reconstructedStints
+              .filter((s) => s.playerId === pId && s.quarter === q)
+              .reduce(
+                (sum, s) => sum + (Number(s.clockIn) - Number(s.clockOut)),
+                0,
+              );
+
+            const remainingToPlay = Math.max(0, totalSecsInQ - accounted);
+            const effectiveOut = Math.max(0, lastIn - remainingToPlay);
+
+            reconstructedStints.push({
+              id: `hist-${q}-${pId}-end`,
+              playerId: pId,
+              quarter: q,
+              clockIn: lastIn,
+              clockOut: effectiveOut,
+              isHistory: true,
+            });
+          }
+        });
+      }
+
+      // CRITICAL: Filter out zero-duration stints to prevent court bloating (e.g. 10 players on court)
+      const filteredStints = reconstructedStints.filter(
+        (s) => Number(s.clockIn) > Number(s.clockOut),
+      );
 
       setHistoryData({
         meta: { ...game, teamName: game.team_name || teamMeta.teamName },
         roster: historicalRoster,
         stats: historicalStats,
         actions: historicalActions,
-        quarterStats: res.data.quarterStats || [],
-        quarter: Math.max(...logs.map((l) => l.quarter), 4),
+        stints: filteredStints,
+        quarterStats: hQuarterStats,
+        quarter: game.quarter || 1,
+        lineupsByQuarter: historicalLineups,
       });
       setView("STATS");
     } catch (err) {
+      console.error("Load Game Error:", err);
       showNotification("Error loading game.");
     }
   };
@@ -1371,8 +1629,8 @@ export default function App() {
           <StatsView
             roster={historyData ? historyData.roster : roster}
             playerStats={historyData ? historyData.stats : playerStats}
-            stints={historyData ? [] : stints}
-            clock={historyData ? 0 : clock}
+            stints={historyData ? historyData.stints : stints}
+            clock={historyData ? historyData.meta.final_clock || 0 : clock}
             teamMeta={historyData ? historyData.meta : teamMeta}
             quarter={historyData ? historyData.quarter : quarter}
             actionHistory={historyData ? historyData.actions : actionHistory}
@@ -1391,6 +1649,9 @@ export default function App() {
             historyQuarterStats={historyData?.quarterStats}
             gameMode={
               historyData ? historyData.meta.game_mode || "FULL" : gameMode
+            }
+            lineupsByQuarter={
+              historyData ? historyData.lineupsByQuarter : lineupsByQuarter
             }
           />
         )}

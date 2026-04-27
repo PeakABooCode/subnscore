@@ -15,6 +15,8 @@ export const saveGameSession = async (req, res) => {
     timeouts,
     finalScoreUs,
     finalScoreThem,
+    finalClock,
+    lineupsByQuarter,
   } = req.body;
 
   const coachId = req.user.id;
@@ -47,14 +49,17 @@ export const saveGameSession = async (req, res) => {
 
     // 2. Insert the Game record with final scores
     const gameResult = await pool.query(
-      `INSERT INTO games (team_id, opponent_name, final_score_us, final_score_them, game_mode) 
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      `INSERT INTO games (team_id, opponent_name, final_score_us, final_score_them, game_mode, final_clock, quarter, lineups_by_quarter) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       [
         teamId,
         teamMeta.opponent,
         finalScoreUs || 0,
         finalScoreThem || 0,
         teamMeta.game_mode || "FULL",
+        finalClock || 0,
+        req.body.quarter || 1,
+        JSON.stringify(lineupsByQuarter || {}),
       ],
     );
     const gameId = gameResult.rows[0].id;
@@ -94,7 +99,7 @@ export const saveGameSession = async (req, res) => {
           stats.score || 0,
           stats.fouls || 0,
           stats.turnovers || 0,
-          player.calculatedMins || "0:00", // Data from App.jsx
+          player.calculatedMins || "0:00", // Store formatted string for the UI Box Score
           player.rawSeconds || 0,
         ],
       );
@@ -107,7 +112,7 @@ export const saveGameSession = async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
         [
           gameId,
-          playerMap[qStat.playerId],
+          playerMap[qStat.playerId] || null, // Ensure null if player ID is missing
           qStat.quarter,
           qStat.points,
           qStat.fouls,
@@ -122,6 +127,7 @@ export const saveGameSession = async (req, res) => {
       // A. Save to the general action_logs table
       // Use || null to ensure we never pass 'undefined' to the DB driver
       const dbPlayerId = log.playerId ? playerMap[log.playerId] || null : null;
+      // IMPORTANT: The 'player_id' column in 'action_logs' table MUST be NULLABLE.
 
       await pool.query(
         `INSERT INTO action_logs (game_id, player_id, action_type, amount, quarter, time_remaining) 
@@ -151,6 +157,7 @@ export const saveGameSession = async (req, res) => {
     res.json({ message: "Game saved successfully!", gameId });
   } catch (err) {
     await pool.query("ROLLBACK");
+    console.error("Database Save Error Details:", err); // Log the full error for debugging
     console.error("Database Save Error:", err);
     res.status(500).json({ error: "Failed to save game data." });
   }
@@ -198,6 +205,11 @@ export const getGameDetails = async (req, res) => {
       `SELECT * FROM action_logs WHERE game_id = $1 ORDER BY quarter ASC, time_remaining DESC, id ASC`,
       [id],
     );
+    const subLogs = await pool.query(
+      `SELECT * FROM substitution_logs WHERE game_id = $1 ORDER BY quarter ASC, time_remaining DESC, action_type DESC`, // Order by action_type to get IN before OUT at same time
+      [id],
+    );
+
     const qStats = await pool.query(
       `SELECT * FROM player_quarter_stats WHERE game_id = $1`,
       [id],
@@ -208,6 +220,8 @@ export const getGameDetails = async (req, res) => {
       stats: stats.rows,
       logs: logs.rows,
       quarterStats: qStats.rows,
+      substitutionLogs: subLogs.rows, // Add substitution logs to the response
+      lineupsByQuarter: gameMeta.rows[0].lineups_by_quarter, // Pass snapshots to frontend
     });
   } catch (err) {
     res.status(500).json({ error: "Failed to load game details" });

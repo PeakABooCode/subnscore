@@ -15,6 +15,8 @@ import {
   History,
   Group, // For Lineups tab
   TrendingUp,
+  Trophy,
+  Timer,
 } from "lucide-react";
 
 export default function StatsView({
@@ -32,6 +34,7 @@ export default function StatsView({
   isHistory, // Prop to detect if we are viewing a past game
   historyQuarterStats, // New prop for pre-calculated quarter data
   gameMode = "FULL", // FULL, HALF, or OPEN
+  lineupsByQuarter = {}, // Explicit snapshots from App.jsx or DB
 }) {
   const [activeTab, setActiveTab] = useState("boxscore");
   const [touchStart, setTouchStart] = useState(null);
@@ -78,9 +81,11 @@ export default function StatsView({
   const sortedRoster = useMemo(() => {
     return [...roster].sort((a, b) => {
       const statsA = playerStats[a.id] || { score: 0, turnovers: 0 };
-      const statsB = playerStats[b.id] || { score: 0, turnovers: 0 };
-      const effA = (statsA.score || 0) - (statsA.turnovers || 0);
-      const effB = (statsB.score || 0) - (statsB.turnovers || 0);
+      const statsB = playerStats[b.id] || { score: 0, turnovers: 0, fouls: 0 };
+      const effA =
+        (statsA.score || 0) - (statsA.turnovers || 0) - (statsA.fouls || 0);
+      const effB =
+        (statsB.score || 0) - (statsB.turnovers || 0) - (statsB.fouls || 0);
       // Secondary sort by points if efficiency is equal
       return effB - effA || (statsB.score || 0) - (statsA.score || 0);
     });
@@ -210,9 +215,27 @@ export default function StatsView({
 
   // Calculate lineup stats
   const lineupStats = useMemo(
-    () => calculateLineupStats(roster, stints, actionHistory, quarter, clock),
-    [roster, stints, actionHistory, quarter, clock],
+    () =>
+      calculateLineupStats(
+        roster,
+        stints,
+        actionHistory,
+        quarter,
+        clock,
+        lineupsByQuarter,
+      ),
+    [roster, stints, actionHistory, quarter, clock, lineupsByQuarter],
   );
+
+  // Find champions for highlighting
+  const { maxPM, maxTime } = useMemo(() => {
+    const pm = Math.max(
+      ...lineupStats.map((l) => l.pointsScored - (l.pointsAgainst || 0)),
+      0,
+    );
+    const time = Math.max(...lineupStats.map((l) => l.totalTime), 1);
+    return { maxPM: pm, maxTime: time };
+  }, [lineupStats]);
 
   // Advanced sorting logic for lineups
   const sortedLineups = useMemo(() => {
@@ -294,7 +317,9 @@ export default function StatsView({
             <span className="text-slate-600">•</span>
             <span>
               {teamMeta?.season
-                ? `Season ${teamMeta.season}`
+                ? teamMeta.season.toString().toLowerCase().includes("season")
+                  ? teamMeta.season
+                  : `Season ${teamMeta.season}`
                 : "Unknown Season"}
             </span>
           </p>
@@ -401,9 +426,10 @@ export default function StatsView({
                   turnovers: 0,
                   minutes: "0:00",
                 };
-                const displayMins = isHistory
-                  ? stats.minutes || "0:00"
-                  : calculateMins(p.id);
+                const displayMins =
+                  isHistory && stats.minutes
+                    ? stats.minutes || "0:00"
+                    : calculateMins(p.id);
 
                 return (
                   <div
@@ -603,6 +629,26 @@ export default function StatsView({
                                 </span>
                                 <span className="text-sm font-black text-slate-700 leading-none mt-0.5">
                                   {qStats.qPts}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-center justify-center ml-1">
+                                <span className="text-[8px] font-black text-slate-400 uppercase leading-none">
+                                  TO
+                                </span>
+                                <span
+                                  className={`text-sm font-black leading-none mt-0.5 ${qStats.qTOs > 0 ? "text-orange-500" : "text-slate-700"}`}
+                                >
+                                  {qStats.qTOs}
+                                </span>
+                              </div>
+                              <div className="flex flex-col items-center justify-center ml-1">
+                                <span className="text-[8px] font-black text-slate-400 uppercase leading-none">
+                                  Fls
+                                </span>
+                                <span
+                                  className={`text-sm font-black leading-none mt-0.5 ${qStats.qFls > 0 ? "text-red-500" : "text-slate-700"}`}
+                                >
+                                  {qStats.qFls}
                                 </span>
                               </div>
                             </div>
@@ -859,99 +905,117 @@ export default function StatsView({
                     .join("-");
                   const isCurrent =
                     !isHistory && lineupKey === currentLineupKey;
+                  const diff =
+                    lineup.pointsScored - (lineup.pointsAgainst || 0);
+
+                  // Highlights
+                  const isTopPerformer = diff > 0 && diff === maxPM;
+                  const isMostUsed =
+                    lineup.totalTime === maxTime && lineup.totalTime > 0;
 
                   return (
                     <div
-                      key={idx}
-                      className={`p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-slate-50 transition-all gap-2 border-l-4 ${
+                      key={lineupKey}
+                      className={`p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between hover:bg-slate-50 transition-all gap-4 border-l-4 ${
                         isCurrent
-                          ? "bg-blue-50/50 border-blue-500 shadow-sm"
-                          : "border-transparent"
+                          ? "bg-blue-50/50 border-blue-500 shadow-inner"
+                          : isTopPerformer
+                            ? "bg-emerald-50/30 border-emerald-500"
+                            : isMostUsed
+                              ? "bg-amber-50/30 border-amber-500"
+                              : "border-transparent"
                       }`}
                     >
                       <div className="flex flex-col gap-1">
-                        {isCurrent && (
-                          <div className="flex items-center gap-1 text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">
-                            <Activity size={10} /> Active Now
-                          </div>
-                        )}
-                        <div className="flex flex-wrap gap-1">
+                        <div className="flex flex-wrap gap-2 mb-1">
+                          {isCurrent && (
+                            <span className="flex items-center gap-1 text-[8px] font-black bg-blue-600 text-white px-2 py-0.5 rounded uppercase tracking-tighter">
+                              <Activity size={8} /> On Court
+                            </span>
+                          )}
+                          {isTopPerformer && (
+                            <span className="flex items-center gap-1 text-[8px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded uppercase tracking-tighter shadow-sm">
+                              <Trophy size={8} /> Top Efficiency
+                            </span>
+                          )}
+                          {isMostUsed && (
+                            <span className="flex items-center gap-1 text-[8px] font-black bg-amber-500 text-slate-900 px-2 py-0.5 rounded uppercase tracking-tighter shadow-sm">
+                              <Timer size={8} /> Most Used
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
                           {lineup.players.map((p) => (
-                            <span
+                            <div
                               key={p.id}
-                              className={`px-2 py-1 rounded-full text-xs font-bold ${
+                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-black border transition-all ${
                                 isCurrent
-                                  ? "bg-blue-600 text-white shadow-sm"
-                                  : "bg-slate-100 text-slate-700"
+                                  ? "bg-blue-600 text-white border-blue-400"
+                                  : "bg-white text-slate-700 border-slate-200 shadow-sm"
                               }`}
                             >
-                              #{p.jersey} {p.name}
-                            </span>
+                              <span
+                                className={
+                                  isCurrent ? "text-blue-200" : "text-blue-600"
+                                }
+                              >
+                                #{p.jersey}
+                              </span>
+                              <span className="truncate max-w-[80px]">
+                                {p.name.split(" ")[0]}
+                              </span>
+                            </div>
                           ))}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="flex flex-col items-center">
+
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-4 w-full lg:w-auto pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                        <div className="flex flex-col items-center justify-center p-2 rounded-xl bg-white lg:bg-transparent border lg:border-0 border-slate-50">
+                          <span className="text-[8px] font-black uppercase text-slate-400 mb-1">
+                            +/-
+                          </span>
+                          <span
+                            className={`text-lg font-black leading-none ${diff > 0 ? "text-emerald-600" : diff < 0 ? "text-rose-600" : "text-slate-400"}`}
+                          >
+                            {diff > 0 ? `+${diff}` : diff}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center">
                           <span className="text-[8px] font-black uppercase text-slate-400">
                             Trend
                           </span>
                           <TrendSparkline trend={lineup.pointsTrend} />
                         </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[8px] font-black uppercase text-slate-400">
-                            +/-
-                          </span>
-                          <span
-                            className={`text-sm font-black ${lineup.pointsScored - (lineup.pointsAgainst || 0) > 0 ? "text-emerald-600" : lineup.pointsScored - (lineup.pointsAgainst || 0) < 0 ? "text-red-600" : "text-slate-400"}`}
-                          >
-                            {lineup.pointsScored - (lineup.pointsAgainst || 0) >
-                            0
-                              ? "+"
-                              : ""}
-                            {lineup.pointsScored - (lineup.pointsAgainst || 0)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-center">
+
+                        <div className="flex flex-col items-center justify-center">
                           <span className="text-[8px] font-black uppercase text-slate-400">
                             Time
                           </span>
-                          <span className="text-sm font-black text-blue-600">
+                          <span className="text-xs font-black text-slate-700">
                             {formatTime(lineup.totalTime)}
                           </span>
                         </div>
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center justify-center">
                           <span className="text-[8px] font-black uppercase text-slate-400">
                             Pts
                           </span>
-                          <span className="text-sm font-black text-emerald-600">
+                          <span className="text-xs font-black text-slate-700">
                             {lineup.pointsScored}
                           </span>
                         </div>
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center justify-center">
                           <span className="text-[8px] font-black uppercase text-slate-400">
-                            TO
+                            TO/FLS
                           </span>
-                          <span
-                            className={`text-sm font-black ${lineup.turnovers > 0 ? "text-orange-500" : "text-slate-400"}`}
-                          >
-                            {lineup.turnovers || 0}
+                          <span className="text-xs font-black text-slate-500">
+                            {lineup.turnovers || 0} / {lineup.fouls || 0}
                           </span>
                         </div>
-                        <div className="flex flex-col items-center">
+                        <div className="flex flex-col items-center justify-center bg-slate-900 rounded-lg px-2 py-1">
                           <span className="text-[8px] font-black uppercase text-slate-400">
-                            Fls
+                            PPM
                           </span>
-                          <span
-                            className={`text-sm font-black ${lineup.fouls > 0 ? "text-red-500" : "text-slate-400"}`}
-                          >
-                            {lineup.fouls || 0}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[8px] font-black uppercase text-slate-400">
-                            Pts/Min
-                          </span>
-                          <span className="text-sm font-black text-slate-700">
+                          <span className="text-xs font-black text-amber-400">
                             {lineup.totalTime > 0
                               ? (
                                   lineup.pointsScored /
