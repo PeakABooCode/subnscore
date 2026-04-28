@@ -158,6 +158,45 @@ export const getOfficialGames = async (req, res) => {
   }
 };
 
+export const getOfficialGameDetails = async (req, res) => {
+  const { id } = req.params;
+  const officialId = req.user.id;
+
+  try {
+    const gameMeta = await pool.query(
+      `SELECT g.*, 
+              ta.name as team_a_name, 
+              tb.name as team_b_name
+       FROM official_games g
+       JOIN official_teams ta ON g.team_a_id = ta.id
+       JOIN official_teams tb ON g.team_b_id = tb.id
+       WHERE g.id = $1 AND g.official_id = $2`,
+      [id, officialId]
+    );
+
+    if (gameMeta.rows.length === 0) {
+      return res.status(404).json({ error: "Game not found or unauthorized." });
+    }
+
+    const logs = await pool.query(
+      `SELECT al.*, p.name as player_name, p.jersey_number as jersey
+       FROM official_action_logs al
+       LEFT JOIN official_players p ON al.player_id = p.id
+       WHERE al.game_id = $1
+       ORDER BY al.quarter ASC, al.time_remaining DESC, al.created_at ASC`,
+      [id]
+    );
+
+    res.json({
+      game: gameMeta.rows[0],
+      logs: logs.rows
+    });
+  } catch (err) {
+    console.error("Fetch Official Game Details Error:", err);
+    res.status(500).json({ error: "Failed to fetch game details." });
+  }
+};
+
 export const deleteOfficialGame = async (req, res) => {
   const { id } = req.params;
   const officialId = req.user.id;

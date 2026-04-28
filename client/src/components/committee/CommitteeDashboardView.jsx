@@ -14,6 +14,7 @@ import {
   List,
 } from "lucide-react";
 import TeamSelectionModal from "../common/TeamSelectionModal";
+import OfficialGameDetailsModal from "./OfficialGameDetailsModal";
 
 export default function CommitteeDashboardView({
   user,
@@ -29,6 +30,9 @@ export default function CommitteeDashboardView({
 
   const [historyGames, setHistoryGames] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  const [selectedGameDetails, setSelectedGameDetails] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   // Separate state for Team A and Team B
   const [teamA, setTeamA] = useState({ name: "", roster: [] });
@@ -53,6 +57,18 @@ export default function CommitteeDashboardView({
       showNotification("Failed to load history.");
     } finally {
       setIsLoadingHistory(false);
+    }
+  };
+
+  const handleViewDetails = async (gameId) => {
+    try {
+      const res = await axios.get(`/api/committee/games/${gameId}`);
+      setSelectedGameDetails(res.data);
+      setIsDetailsModalOpen(true);
+    } catch (err) {
+      showNotification(
+        err.response?.data?.error || "Failed to load game details."
+      );
     }
   };
 
@@ -232,7 +248,8 @@ export default function CommitteeDashboardView({
                 {historyGames.map((game) => (
                   <div
                     key={game.id}
-                    className="bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-amber-200 transition-all group"
+                    onClick={() => handleViewDetails(game.id)}
+                    className="bg-slate-50 p-5 rounded-2xl border border-slate-100 hover:border-amber-200 transition-all group cursor-pointer"
                   >
                     <div className="flex justify-between items-start mb-4">
                       <div>
@@ -244,7 +261,10 @@ export default function CommitteeDashboardView({
                         </h4>
                       </div>
                       <button
-                        onClick={() => handleDeleteGame(game.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteGame(game.id);
+                        }}
                         className="text-slate-300 hover:text-red-500 transition-colors"
                       >
                         <Trash2 size={16} />
@@ -396,6 +416,13 @@ export default function CommitteeDashboardView({
       </div>
       </>
       )}
+
+      {/* Detail Modal */}
+      <OfficialGameDetailsModal 
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        data={selectedGameDetails}
+      />
     </div>
   );
 }
