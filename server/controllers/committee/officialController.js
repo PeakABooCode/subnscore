@@ -37,16 +37,16 @@ export const initializeOfficialGame = async (req, res) => {
       }
 
       // Sync Players
-      const playerIds = [];
+      const playerMap = {}; // Map client-side temp ID to DB UUID
       for (const p of roster) {
         const pRes = await pool.query(
           "INSERT INTO official_players (team_id, name, jersey_number) VALUES ($1, $2, $3) " +
             "ON CONFLICT (team_id, jersey_number) DO UPDATE SET name = EXCLUDED.name RETURNING id",
           [teamId, p.name, p.jersey],
         );
-        playerIds.push(pRes.rows[0].id);
+        playerMap[p.id] = pRes.rows[0].id; // Store mapping
       }
-      return { teamId, playerIds };
+      return { teamId, playerMap };
     };
 
     const teamAData = await setupTeam(teamAName, teamARoster);
@@ -76,6 +76,8 @@ export const initializeOfficialGame = async (req, res) => {
       gameId,
       teamAId: teamAData.teamId,
       teamBId: teamBData.teamId,
+      teamAPlayerMap: teamAData.playerMap,
+      teamBPlayerMap: teamBData.playerMap,
     });
   } catch (err) {
     await pool.query("ROLLBACK");
@@ -115,7 +117,7 @@ export const saveOfficialGame = async (req, res) => {
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             gameId,
-            log.playerId || null,
+            log.dbPlayerId || null, // Use the mapped DB player ID
             log.type,
             teamSide,
             log.amount || 0,

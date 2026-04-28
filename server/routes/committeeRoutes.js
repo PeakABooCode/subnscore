@@ -1,8 +1,11 @@
 import express from "express";
 import {
   initializeOfficialGame,
+  saveOfficialGame,
   getOfficialGames,
 } from "../controllers/committee/officialController.js";
+import { isOfficial } from "../config/middleware/roleMiddleware.js";
+
 
 // This router will handle all official scoresheet and committee-level logic.
 const router = express.Router();
@@ -15,7 +18,8 @@ router.get("/status", (req, res) => {
   });
 });
 
-router.post("/games/init", initializeOfficialGame); // This is committeeQuarter
-router.get("/games", getOfficialGames);
+router.post("/games/init", isOfficial, initializeOfficialGame);
+router.post("/games/save", isOfficial, saveOfficialGame);
+router.get("/games", isOfficial, getOfficialGames);
 
 export default router;

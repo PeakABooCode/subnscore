@@ -1799,6 +1799,8 @@ export default function App() {
               setCommitteePossessionArrow(null);
               setCommitteeTimeouts({ A: [], B: [] });
               setCommitteeGameData(data);
+              // Store the player ID maps returned from the backend
+              setCommitteeGameData(prev => ({ ...prev, teamAPlayerMap: data.teamAPlayerMap, teamBPlayerMap: data.teamBPlayerMap }));
               setView("COMMITTEE_LIVE");
             }}
           />
@@ -1821,6 +1823,8 @@ export default function App() {
             setPossessionArrow={setCommitteePossessionArrow}
             timeouts={committeeTimeouts}
             setTimeouts={setCommitteeTimeouts}
+            teamAPlayerMap={committeeGameData.teamAPlayerMap}
+            teamBPlayerMap={committeeGameData.teamBPlayerMap}
             setCommitteeKeybindings={setCommitteeKeybindings}
             onGameSaved={() => {
               setCommitteeGameData(null);

@@ -394,7 +394,7 @@ function TeamEntrySection({
         <label className="text-[10px] font-black uppercase text-slate-500 ml-1 block mb-3">
           Add to Roster
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400"
             placeholder="Player Name"
@@ -403,20 +403,22 @@ function TeamEntrySection({
               setNewPlayer({ ...newPlayer, name: e.target.value })
             }
           />
-          <input
-            className="w-20 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400"
-            placeholder="#"
-            value={newPlayer.jersey}
-            onChange={(e) =>
-              setNewPlayer({ ...newPlayer, jersey: e.target.value })
-            }
-          />
-          <button
-            onClick={onAdd}
-            className="p-2.5 rounded-xl bg-slate-900 text-white hover:bg-black transition-colors shadow-md"
-          >
-            <Plus size={24} />
-          </button>
+          <div className="flex gap-2">
+            <input
+              className="w-24 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-slate-400"
+              placeholder="#"
+              value={newPlayer.jersey}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, jersey: e.target.value })
+              }
+            />
+            <button
+              onClick={onAdd}
+              className="flex-1 sm:flex-none p-2.5 rounded-xl bg-slate-900 text-white hover:bg-black transition-colors shadow-md flex items-center justify-center"
+            >
+              <Plus size={24} />
+            </button>
+          </div>
         </div>
       </div>
 

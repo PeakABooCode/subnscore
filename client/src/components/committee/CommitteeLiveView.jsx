@@ -36,6 +36,8 @@ export default function CommitteeLiveView({
   timeouts, // Now received as prop
   setTimeouts, // Now received as prop
   onGameSaved, // Now received as prop
+  teamAPlayerMap, // New prop
+  teamBPlayerMap, // New prop
 }) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [logs, setLogs] = useState([]);
@@ -201,6 +203,7 @@ export default function CommitteeLiveView({
       type: "SCORE",
       team,
       playerId,
+      dbPlayerId: (team === 'A' ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId, // Store the DB ID
       playerName: player.name,
       jersey: player.jersey,
       amount,
@@ -233,6 +236,7 @@ export default function CommitteeLiveView({
       type: "FOUL",
       team,
       playerId,
+      dbPlayerId: (team === 'A' ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId, // Store the DB ID
       playerName: player.name,
       jersey: player.jersey,
       quarter,
@@ -343,10 +347,10 @@ export default function CommitteeLiveView({
       
 
       {/* 1. TOP SCOREBOARD UNIT */}
-      <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl border-b-4 border-amber-500 sticky top-4 z-50">
-        <div className="flex justify-between items-center">
+      <div className="bg-slate-900 text-white p-4 md:p-6 rounded-3xl shadow-2xl border-b-4 border-amber-500 sticky top-2 md:top-4 z-50">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0">
           {/* Team A Score */}
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 w-full">
             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">
               {initialData.teamAName}
             </p>
@@ -400,7 +404,7 @@ export default function CommitteeLiveView({
           </div>
 
           {/* Period & Arrow Info */}
-          <div className="flex flex-col items-center px-6 border-x border-slate-800 min-w-[240px]">
+          <div className="flex flex-col items-center px-2 md:px-6 md:border-x border-slate-800 min-w-0 w-full md:w-auto">
             <div className="flex items-center gap-3 mb-4">
               <span className="bg-amber-500 text-slate-900 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">
                 {periodName}
@@ -502,7 +506,7 @@ export default function CommitteeLiveView({
           </div>
 
           {/* Team B Score */}
-          <div className="text-center flex-1">
+          <div className="text-center flex-1 w-full">
             <p className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-1">
               {initialData.teamBName}
             </p>
@@ -558,20 +562,20 @@ export default function CommitteeLiveView({
 
       {/* 2. INITIAL JUMP BALL OVERLAY */}
       {possessionArrow === null && (
-        <div className="bg-amber-50 border-2 border-amber-200 p-8 rounded-3xl text-center space-y-4 animate-in fade-in zoom-in">
+        <div className="bg-amber-50 border-2 border-amber-200 p-6 md:p-8 rounded-3xl text-center space-y-4 animate-in fade-in zoom-in mx-2">
           <h3 className="text-xl font-black uppercase text-amber-900 tracking-tight">
             Who won the opening tip?
           </h3>
-          <div className="flex justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
             <button
               onClick={() => setInitialJumpBall("A")}
-              className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black uppercase shadow-lg hover:bg-blue-700 transition-all"
+              className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black uppercase shadow-lg hover:bg-blue-700 transition-all w-full sm:w-auto"
             >
               {initialData.teamAName}
             </button>
             <button
               onClick={() => setInitialJumpBall("B")}
-              className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase shadow-lg hover:bg-red-700 transition-all"
+              className="bg-red-600 text-white px-6 py-4 rounded-2xl font-black uppercase shadow-lg hover:bg-red-700 transition-all w-full sm:w-auto"
             >
               {initialData.teamBName}
             </button>
