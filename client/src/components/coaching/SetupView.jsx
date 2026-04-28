@@ -12,9 +12,9 @@ import {
   ShieldCheck,
   Zap,
 } from "lucide-react";
-import EditPlayerModal from "./EditPlayerModal";
-import { capitalizeWords } from "../utils/helpers";
-import TeamSelectionModal from "./TeamSelectionModal";
+import EditPlayerModal from "../common/EditPlayerModal";
+import { capitalizeWords } from "../../utils/helpers";
+import TeamSelectionModal from "../common/TeamSelectionModal";
 
 export default function SetupView({
   user,

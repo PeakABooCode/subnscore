@@ -3,9 +3,9 @@ import {
   formatTime,
   QUARTER_SECONDS,
   calculateLineupStats,
-} from "../utils/helpers";
+} from "../../utils/helpers";
 import {
-  ClipboardList,
+  ClipboardList, // This is coachingQuarter
   Users,
   Clock,
   Trash2,
@@ -427,7 +427,7 @@ export default function StatsView({
                   minutes: "0:00",
                 };
                 const displayMins =
-                  isHistory && stats.minutes
+                  isHistory && stats.minutes // Check if stats.minutes exists for history
                     ? stats.minutes || "0:00"
                     : calculateMins(p.id);
 

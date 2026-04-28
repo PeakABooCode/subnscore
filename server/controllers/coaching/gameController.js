@@ -3,7 +3,7 @@
  * It handles the heavy lifting of saving teams, players, stats, action logs, and substitution history.
  */
 
-import pool from "../config/db.js";
+import pool from "../../config/db.js";
 
 export const saveGameSession = async (req, res) => {
   const {
@@ -15,6 +15,7 @@ export const saveGameSession = async (req, res) => {
     timeouts,
     finalScoreUs,
     finalScoreThem,
+    quarter, // Added quarter to payload
     finalClock,
     lineupsByQuarter,
   } = req.body;
@@ -58,7 +59,7 @@ export const saveGameSession = async (req, res) => {
         finalScoreThem || 0,
         teamMeta.game_mode || "FULL",
         finalClock || 0,
-        req.body.quarter || 1,
+        quarter || 1, // Use the quarter from the payload
         JSON.stringify(lineupsByQuarter || {}),
       ],
     );

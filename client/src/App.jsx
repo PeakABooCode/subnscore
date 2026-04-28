@@ -3,13 +3,17 @@ import axios from "axios";
 import { Activity, LogOut, History as HistoryIcon, Lock } from "lucide-react";
 
 // --- Imports ---
-import AuthView from "./components/AuthView";
-import SetupView from "./components/SetupView";
-import LiveView from "./components/LiveView";
-import StatsView from "./components/StatsView";
-import ConfirmationModal from "./components/ConfirmationModal";
-import InputModal from "./components/InputModal";
-import HistoryView from "./components/HistoryView";
+import AuthView from "./components/auth/AuthView";
+import SetupView from "./components/coaching/SetupView";
+import LiveView from "./components/coaching/LiveView";
+import CommitteeDashboardView from "./components/committee/CommitteeDashboardView";
+import CommitteeLiveView from "./components/committee/CommitteeLiveView";
+import CommitteeScoreboardView from "./components/committee/CommitteeScoreboardView.jsx";
+import ModuleSelectionView from "./components/dashboard/ModuleSelectionView";
+import StatsView from "./components/coaching/StatsView";
+import ConfirmationModal from "./components/common/ConfirmationModal";
+import InputModal from "./components/common/InputModal";
+import HistoryView from "./components/coaching/HistoryView";
 import { useTimer } from "./hooks/useTimer";
 import {
   QUARTER_SECONDS,
@@ -21,13 +25,37 @@ import {
 axios.defaults.withCredentials = true;
 
 export default function App() {
-  const { clock, setClock, isRunning, setIsRunning } = useTimer();
+  // --- Independent Timers for Coaching and Committee ---
+  const coachingTimer = useTimer();
+  const committeeTimer = useTimer();
+
+  const {
+    clock: coachingClock,
+    setClock: setCoachingClock,
+    isRunning: isCoachingRunning,
+    setIsRunning: setIsCoachingRunning,
+  } = coachingTimer;
+
+  const {
+    clock: committeeClock,
+    setClock: setCommitteeClock,
+    isRunning: isCommitteeRunning,
+    setIsRunning: setIsCommitteeRunning,
+  } = committeeTimer;
 
   // --- Global App State ---
   const [user, setUser] = useState(null);
   const [view, setView] = useState(() => {
-    return localStorage.getItem("subnscore_view") || "AUTH";
-  }); // AUTH, SETUP, LIVE, STATS, HISTORY
+    const saved = localStorage.getItem("subnscore_view");
+    return saved && saved !== "AUTH" ? saved : "DASHBOARD";
+  }); // AUTH, DASHBOARD, SETUP, LIVE, STATS, HISTORY
+
+  // --- STANDALONE SCOREBOARD CHECK ---
+  const urlParams = new URLSearchParams(window.location.search);
+  const isScoreboardView = urlParams.get("view") === "scoreboard";
+
+  const [selectedModule, setSelectedModule] = useState(null);
+  const [committeeGameData, setCommitteeGameData] = useState(null);
   const [notification, setNotification] = useState(null);
   const [actionHistory, setActionHistory] = useState(() => {
     try {
@@ -142,6 +170,14 @@ export default function App() {
       return [];
     }
   });
+  const [coachingQuarter, setCoachingQuarter] = useState(() => {
+    const saved = localStorage.getItem("subnscore_coachingQuarter");
+    return saved ? JSON.parse(saved) : 1;
+  });
+  const [committeeQuarter, setCommitteeQuarter] = useState(() => {
+    const saved = localStorage.getItem("subnscore_committeeQuarter");
+    return saved ? JSON.parse(saved) : 1;
+  });
 
   const [teamFouls, setTeamFouls] = useState(() => {
     try {
@@ -166,10 +202,10 @@ export default function App() {
 
   // Fetch coach's existing teams for lookup/auto-fill in SetupView
   useEffect(() => {
-    if (user && view === "SETUP") {
+    if (user && (view === "SETUP" || view === "COMMITTEE_DASHBOARD")) {
       const fetchTeams = async () => {
         try {
-          const res = await axios.get("/api/teams");
+          const res = await axios.get("/api/coaching/teams");
           // Sort by updated_at descending to put recently used teams first
           const sorted = [...res.data].sort(
             (a, b) => new Date(b.updated_at) - new Date(a.updated_at),
@@ -228,12 +264,22 @@ export default function App() {
   }, [actionHistory]);
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_quarter", JSON.stringify(quarter));
-  }, [quarter]);
-  useEffect(() => {
-    if (!isLoaded.current) return;
     localStorage.setItem("subnscore_court", JSON.stringify(court));
   }, [court]);
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    localStorage.setItem(
+      "subnscore_coachingQuarter",
+      JSON.stringify(coachingQuarter),
+    );
+  }, [coachingQuarter]);
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    localStorage.setItem(
+      "subnscore_committeeQuarter",
+      JSON.stringify(committeeQuarter),
+    );
+  }, [committeeQuarter]);
   useEffect(() => {
     if (!isLoaded.current) return;
     localStorage.setItem("subnscore_stints", JSON.stringify(stints));
@@ -283,13 +329,35 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_clock", JSON.stringify(clock));
-  }, [clock]);
+    localStorage.setItem(
+      "subnscore_coachingClock",
+      JSON.stringify(coachingClock),
+    );
+  }, [coachingClock]);
 
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_isRunning", JSON.stringify(isRunning));
-  }, [isRunning]);
+    localStorage.setItem(
+      "subnscore_coachingIsRunning",
+      JSON.stringify(isCoachingRunning),
+    );
+  }, [isCoachingRunning]);
+
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    localStorage.setItem(
+      "subnscore_committeeClock",
+      JSON.stringify(committeeClock),
+    );
+  }, [committeeClock]);
+
+  useEffect(() => {
+    if (!isLoaded.current) return;
+    localStorage.setItem(
+      "subnscore_committeeIsRunning",
+      JSON.stringify(isCommitteeRunning),
+    );
+  }, [isCommitteeRunning]);
 
   // Session Check
   useEffect(() => {
@@ -302,12 +370,19 @@ export default function App() {
         if (savedView && savedView !== "AUTH") {
           setView(savedView);
         } else {
-          setView("SETUP");
+          if (selectedModule === "COACHING") {
+            setView("SETUP");
+          } else {
+            setView("DASHBOARD");
+          }
         }
       } catch (err) {
         setUser(null);
         if (err.response?.status === 401) {
-          setView("AUTH");
+          // If not authenticated, do NOT set view to AUTH directly.
+          // The view should remain DASHBOARD, and AUTH will be triggered
+          // only if they select COACHING.
+          // setView("AUTH"); // Removed this line
         }
       } finally {
         setIsAuthLoading(false);
@@ -323,11 +398,27 @@ export default function App() {
     }
 
     // 1. Restore clock and timer state from localStorage on mount
-    const savedClock = localStorage.getItem("subnscore_clock");
-    const savedRunning = localStorage.getItem("subnscore_isRunning");
+    const savedCoachingClock = localStorage.getItem("subnscore_coachingClock");
+    const savedCoachingRunning = localStorage.getItem(
+      "subnscore_coachingIsRunning",
+    );
+    const savedCommitteeClock = localStorage.getItem(
+      "subnscore_committeeClock",
+    );
+    const savedCommitteeRunning = localStorage.getItem(
+      "subnscore_committeeIsRunning",
+    );
+    const savedCoachingQuarter = localStorage.getItem("subnscore_coachingQuarter");
+    const savedCommitteeQuarter = localStorage.getItem("subnscore_committeeQuarter");
 
-    if (savedClock) setClock(JSON.parse(savedClock));
-    if (savedRunning) setIsRunning(JSON.parse(savedRunning));
+    if (savedCoachingClock) setCoachingClock(JSON.parse(savedCoachingClock));
+    if (savedCoachingRunning)
+      setIsCoachingRunning(JSON.parse(savedCoachingRunning));
+    if (savedCommitteeClock) setCommitteeClock(JSON.parse(savedCommitteeClock));
+    if (savedCommitteeRunning)
+      setIsCommitteeRunning(JSON.parse(savedCommitteeRunning));
+    if (savedCoachingQuarter) setCoachingQuarter(JSON.parse(savedCoachingQuarter));
+    if (savedCommitteeQuarter) setCommitteeQuarter(JSON.parse(savedCommitteeQuarter));
 
     // 2. Delay marking as loaded slightly to allow states to settle
     setTimeout(() => {
@@ -338,19 +429,19 @@ export default function App() {
   // --- Pasarelle Rule Automation Logic ---
   useEffect(() => {
     // Only check if clock is running and hits exactly 5:00 (300 seconds)
-    if (!isRunning || clock !== 300) return;
+    if (!isCoachingRunning || coachingClock !== 300 || !coachingQuarter) return;
 
     const isPasarelleActive =
-      (gameMode === "FULL" && quarter <= 3) ||
-      (gameMode === "HALF" && quarter <= 2);
+      (gameMode === "FULL" && coachingQuarter <= 3) ||
+      (gameMode === "HALF" && coachingQuarter <= 2);
 
-    if (isPasarelleActive && !pasarelleTriggered[quarter]) {
-      setIsRunning(false);
-      setPasarelleTriggered((prev) => ({ ...prev, [quarter]: true }));
+    if (isPasarelleActive && !pasarelleTriggered[coachingQuarter]) {
+      setIsCoachingRunning(false);
+      setPasarelleTriggered((prev) => ({ ...prev, [coachingQuarter]: true }));
       showNotification("PASARELLE BREAK: Mandatory Substitutions Required");
       if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
     }
-  }, [clock, isRunning, quarter, gameMode, pasarelleTriggered]);
+  }, [coachingClock, isCoachingRunning, coachingQuarter, gameMode, pasarelleTriggered]);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -375,12 +466,21 @@ export default function App() {
         const res = await axios.post("/api/auth/login", {
           email: authForm.email,
           password: authForm.password,
+          role: selectedModule === "COMMITTEE" ? "COMMITTEE" : "COACH",
         });
         setUser(res.data.user);
-        setView("SETUP");
-        showNotification("Welcome back, Coach!");
+        if (selectedModule === "COACHING") {
+          setView("SETUP");
+        } else if (selectedModule === "COMMITTEE") {
+          setCommitteeQuarter(1); // Reset committee quarter on login
+          setView("COMMITTEE_DASHBOARD");
+        }
+        showNotification(`Welcome back, ${res.data.user.name}!`);
       } else {
-        const res = await axios.post("/api/auth/register", authForm);
+        const res = await axios.post("/api/auth/register", {
+          ...authForm,
+          role: selectedModule === "COMMITTEE" ? "COMMITTEE" : "COACH",
+        });
         setAuthMode("login");
         showNotification(
           "Account created! Please sign in with your credentials.",
@@ -474,16 +574,19 @@ export default function App() {
       localStorage.removeItem("subnscore_stints");
       localStorage.removeItem("subnscore_teamFouls");
       localStorage.removeItem("subnscore_timeouts");
-      localStorage.removeItem("subnscore_clock");
-      localStorage.removeItem("subnscore_isRunning");
+      localStorage.removeItem("subnscore_coachingClock");
+      localStorage.removeItem("subnscore_coachingIsRunning");
+      localStorage.removeItem("subnscore_coachingQuarter");
+      localStorage.removeItem("subnscore_committeeClock");
+      localStorage.removeItem("subnscore_committeeIsRunning");
       localStorage.removeItem("subnscore_historyData");
       localStorage.removeItem("subnscore_pasarelleTriggered");
 
       setUser(null);
-      setView("AUTH");
-      // Complete Refresh on Logout
-      resetGame(true);
-      //Logged out and session cleared
+      setSelectedModule(null);
+      // Complete Refresh and return to Dashboard
+      resetGame(true, true, "DASHBOARD");
+
       showNotification("Logged out successfully.");
     } catch (err) {
       showNotification("Error logging out.");
@@ -504,7 +607,7 @@ export default function App() {
         jersey: p.jersey.toString().trim(),
       }));
 
-      const res = await axios.post("/api/teams/roster", {
+      const res = await axios.post("/api/coaching/teams/roster", {
         teamName: teamMeta.teamName,
         roster: rosterToSave,
         league: teamMeta.league,
@@ -595,7 +698,7 @@ export default function App() {
 
     try {
       const res = await axios.get(
-        `/api/teams/roster/${encodeURIComponent(teamMeta.teamName)}`,
+        `/api/coaching/teams/roster/${encodeURIComponent(teamMeta.teamName)}`,
       );
 
       if (!res.data || !Array.isArray(res.data)) {
@@ -804,7 +907,7 @@ export default function App() {
         starters.map((id) => ({
           id: Math.random().toString(),
           playerId: id,
-          quarter: 1,
+          quarter: coachingQuarter,
           clockIn: QUARTER_SECONDS,
           clockOut: null,
         })),
@@ -817,7 +920,11 @@ export default function App() {
     setView("LIVE");
   };
 
-  const resetGame = (force = false, skipConfirm = false) => {
+  const resetGame = (
+    force = false,
+    skipConfirm = false,
+    nextView = "SETUP",
+  ) => {
     // When called via onClick, 'force' is the Event object.
     // We check strictly for 'true' to distinguish programmatic calls from UI events.
     if (force !== true && skipConfirm !== true) {
@@ -839,9 +946,10 @@ export default function App() {
     setPlayerStats({});
     setCourt([]);
     setStints([]);
-    setQuarter(1);
-    setClock(QUARTER_SECONDS);
-    setIsRunning(false);
+    setCoachingQuarter(1); // Reset coaching quarter
+    setCommitteeQuarter(1); // Reset committee quarter
+    setCoachingClock(QUARTER_SECONDS);
+    setIsCoachingRunning(false);
     setActionHistory([]);
     setHistoryData(null);
     setTeamFouls({ 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 });
@@ -857,13 +965,16 @@ export default function App() {
     localStorage.removeItem("subnscore_stints");
     localStorage.removeItem("subnscore_teamFouls");
     localStorage.removeItem("subnscore_timeouts");
-    localStorage.removeItem("subnscore_clock");
-    localStorage.removeItem("subnscore_isRunning");
+    localStorage.removeItem("subnscore_coachingClock");
+    localStorage.removeItem("subnscore_coachingIsRunning");
+    localStorage.removeItem("subnscore_coachingQuarter");
+    localStorage.removeItem("subnscore_committeeClock");
+    localStorage.removeItem("subnscore_committeeIsRunning");
     localStorage.removeItem("subnscore_historyData");
     localStorage.removeItem("subnscore_pasarelleTriggered");
 
     // 3. Go back to Setup View
-    setView("SETUP");
+    setView(nextView);
   };
 
   // --- Live Action Handlers --- //
@@ -912,7 +1023,7 @@ export default function App() {
         newStints.push({
           id: Math.random().toString(),
           playerId: pIn,
-          quarter,
+          quarter: coachingQuarter,
           clockIn: clock,
           clockOut: null,
         });
@@ -921,9 +1032,9 @@ export default function App() {
       });
 
       // Capture snapshot if this is the first lineup of the quarter
-      setLineupsByQuarter((prev) => ({
+      setLineupsByQuarter((prev) => ({ // This is for coaching lineups
         ...prev,
-        [quarter]: onBenchSelected,
+        [coachingQuarter]: onBenchSelected,
       }));
 
       setStints(newStints);
@@ -943,7 +1054,7 @@ export default function App() {
         // 1. Close stint for player going out
         newStints.forEach((s, i) => {
           if (s.playerId === pOut && s.clockOut === null) {
-            newStints[i] = { ...s, clockOut: clock };
+            newStints[i] = { ...s, clockOut: coachingClock };
           }
         });
 
@@ -952,7 +1063,7 @@ export default function App() {
           id: Math.random().toString(),
           playerId: pIn,
           quarter,
-          clockIn: clock,
+          clockIn: coachingClock,
           clockOut: null,
         });
 
@@ -962,8 +1073,8 @@ export default function App() {
 
         // 4. Record history
         newActions.push(
-          { type: "SUB_IN", playerId: pIn, clock, quarter },
-          { type: "SUB_OUT", playerId: pOut, clock, quarter },
+          { type: "SUB_IN", playerId: pIn, clock: coachingClock, quarter },
+          { type: "SUB_OUT", playerId: pOut, clock: coachingClock, quarter },
         );
       });
       setStints(newStints);
@@ -1004,20 +1115,20 @@ export default function App() {
 
       setTeamFouls((prev) => ({
         ...prev,
-        [quarter]: nextFouls,
+        [coachingQuarter]: nextFouls,
       }));
-      setIsRunning(false);
+      setIsCoachingRunning(false);
     }
     setActionHistory((prev) => [
       ...prev,
-      { playerId, type, amount, quarter, clock },
+      { playerId, type, amount, quarter: coachingQuarter, clock: coachingClock },
     ]);
   };
 
   const addOpponentScore = (amount) => {
     setActionHistory((prev) => [
       ...prev,
-      { type: "opp_score", amount, quarter, clock },
+      { type: "opp_score", amount, quarter: coachingQuarter, clock: coachingClock },
     ]);
   };
 
@@ -1046,7 +1157,7 @@ export default function App() {
       if (lastAction.type === "fouls") {
         setTeamFouls((prev) => ({
           ...prev,
-          [lastAction.quarter]: Math.max(
+          [lastAction.quarter]: Math.max( // lastAction.quarter is correct here
             0,
             (prev[lastAction.quarter] || 0) - 1,
           ),
@@ -1087,7 +1198,7 @@ export default function App() {
       if (action.type === "fouls") {
         setTeamFouls((prev) => ({
           ...prev,
-          [action.quarter]: Math.max(0, (prev[action.quarter] || 0) - 1),
+          [action.quarter]: Math.max(0, (prev[action.quarter] || 0) - 1), // action.quarter is correct here
         }));
       }
     }
@@ -1115,7 +1226,7 @@ export default function App() {
 
   const advanceQuarter = (skipConfirm = false) => {
     const pName =
-      quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
+      coachingQuarter > 4 ? `Overtime ${coachingQuarter - 4}` : `Quarter ${coachingQuarter}`;
     // When called via onClick, 'skipConfirm' is the Event object.
     // Strictly check for 'true' to ensure the modal is triggered.
     if (skipConfirm !== true) return setIsAdvanceQuarterConfirmOpen(true);
@@ -1123,32 +1234,32 @@ export default function App() {
     // ✅ SAVE CURRENT LINEUP SNAPSHOT BEFORE CLEARING
     setLineupsByQuarter((prev) => ({
       ...prev,
-      [quarter]: [...court],
+      [coachingQuarter]: [...court],
     }));
 
     // 1. Close current stints and record SUB_OUT actions for the logs
     const currentCourtPlayers = [...court];
     const updatedStints = stints.map((s) =>
-      s.clockOut === null ? { ...s, clockOut: clock } : s,
+      s.clockOut === null ? { ...s, clockOut: coachingClock } : s,
     );
 
     const closingActions = currentCourtPlayers.map((pId) => ({
       type: "SUB_OUT",
       playerId: pId,
-      clock,
-      quarter,
+      clock: coachingClock,
+      quarter: coachingQuarter,
     }));
 
-    const nextQ = quarter + 1;
+    const nextQ = coachingQuarter + 1;
 
     setStints(updatedStints); // No "next quarter" stints yet - court is empty
     setCourt([]); // CLEAR THE COURT PERMANENTLY ON ADVANCE
     setPendingSwapIds([]);
     setActionHistory((prev) => [...prev, ...closingActions]);
 
-    setQuarter(nextQ);
-    setClock(QUARTER_SECONDS);
-    setIsRunning(false);
+    setCoachingQuarter(nextQ);
+    setCoachingClock(QUARTER_SECONDS);
+    setIsCoachingRunning(false);
   };
 
   // --- Backend Integration Handlers --- //
@@ -1169,7 +1280,7 @@ export default function App() {
     // Ensure the final quarter's lineup is snapshotted before payload creation
     const finalLineups = {
       ...lineupsByQuarter,
-      [quarter]: [...court],
+      [coachingQuarter]: [...court],
     };
 
     try {
@@ -1179,7 +1290,7 @@ export default function App() {
         stints
           .filter((s) => s.playerId === player.id)
           .forEach((s) => {
-            const out = s.clockOut !== null ? s.clockOut : clock;
+            const out = s.clockOut !== null ? s.clockOut : coachingClock;
             totalSeconds += s.clockIn - out;
           });
 
@@ -1200,7 +1311,7 @@ export default function App() {
           stints
             .filter((s) => s.playerId === p.id && s.quarter === q)
             .forEach((s) => {
-              const out = s.clockOut !== null ? s.clockOut : clock;
+              const out = s.clockOut !== null ? s.clockOut : coachingClock;
               qSecs += s.clockIn - out;
             });
 
@@ -1250,12 +1361,12 @@ export default function App() {
         timeouts,
         finalScoreUs: teamScore,
         finalScoreThem: oppScore,
-        finalClock: clock,
-        quarter: quarter,
+        finalClock: coachingClock,
+        quarter: coachingQuarter,
         lineupsByQuarter: finalLineups, // Send to backend
       };
 
-      const res = await axios.post("/api/games/save", payload);
+      const res = await axios.post("/api/coaching/games/save", payload);
       showNotification("Game saved to cloud!");
 
       // Pass 'true' to force reset everything (including textboxes) without a second prompt
@@ -1272,7 +1383,7 @@ export default function App() {
 
   const loadGameFromHistory = async (gameId) => {
     try {
-      const res = await axios.get(`/api/games/${gameId}`);
+      const res = await axios.get(`/api/coaching/games/${gameId}`);
       const {
         game,
         stats,
@@ -1429,15 +1540,20 @@ export default function App() {
           const out =
             s.clockOut !== null
               ? s.clockOut
-              : s.quarter === quarter
-                ? clock
+                : s.quarter === coachingQuarter
+                ? coachingClock
                 : 0;
           totalSeconds += s.clockIn - out;
         });
       acc[player.id] = totalSeconds;
       return acc;
     }, {});
-  }, [roster, stints, quarter, clock]);
+  }, [roster, stints, coachingQuarter, coachingClock]);
+
+  // If in standalone scoreboard mode, override everything
+  if (isScoreboardView) {
+    return <CommitteeScoreboardView />;
+  }
 
   if (isAuthLoading)
     return (
@@ -1481,62 +1597,67 @@ export default function App() {
                 SubNScore
               </span>
             </div>
-            <div className="flex bg-slate-800 rounded-lg p-1">
-              <button
-                onClick={() => {
-                  setView("SETUP");
-                  setHistoryData(null);
-                }}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "SETUP" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
-              >
-                Setup
-              </button>
-              <button
-                disabled={!gameInProgress}
-                onClick={() => {
-                  setView("LIVE");
-                  setHistoryData(null);
-                }}
-                title={
-                  !gameInProgress ? "Start a game to enable Live view" : ""
-                }
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all flex items-center gap-1 ${
-                  view === "LIVE"
-                    ? "bg-white text-slate-900 shadow"
-                    : !gameInProgress
-                      ? "text-slate-600 cursor-not-allowed opacity-50"
-                      : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {!gameInProgress && <Lock size={12} />}
-                Live
-              </button>
-              <button
-                disabled={!gameInProgress && !historyData}
-                onClick={() => setView("STATS")}
-                title={
-                  !gameInProgress && !historyData
-                    ? "Start a game or load history to enable Report view"
-                    : ""
-                }
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all flex items-center gap-1 ${
-                  view === "STATS"
-                    ? "bg-white text-slate-900 shadow"
-                    : !gameInProgress && !historyData
-                      ? "text-slate-600 cursor-not-allowed opacity-50"
-                      : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {!gameInProgress && !historyData && <Lock size={12} />}
-                Report
-              </button>
-              <button
-                onClick={() => setView("HISTORY")}
-                className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "HISTORY" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
-              >
-                History
-              </button>
-            </div>
+            {/* Only show coaching navigation if the user is a Coach and not on the selection dashboards */}
+            {view !== "DASHBOARD" &&
+              view !== "COMMITTEE_DASHBOARD" &&
+              user?.role === "COACH" && (
+                <div className="flex bg-slate-800 rounded-lg p-1">
+                  <button
+                    onClick={() => {
+                      setView("SETUP");
+                      setHistoryData(null);
+                    }}
+                    className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "SETUP" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
+                  >
+                    Setup
+                  </button>
+                  <button
+                    disabled={!gameInProgress}
+                    onClick={() => {
+                      setView("LIVE");
+                      setHistoryData(null);
+                    }}
+                    title={
+                      !gameInProgress ? "Start a game to enable Live view" : ""
+                    }
+                    className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all flex items-center gap-1 ${
+                      view === "LIVE"
+                        ? "bg-white text-slate-900 shadow"
+                        : !gameInProgress
+                          ? "text-slate-600 cursor-not-allowed opacity-50"
+                          : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    {!gameInProgress && <Lock size={12} />}
+                    Live
+                  </button>
+                  <button
+                    disabled={!gameInProgress && !historyData}
+                    onClick={() => setView("STATS")}
+                    title={
+                      !gameInProgress && !historyData
+                        ? "Start a game or load history to enable Report view"
+                        : ""
+                    }
+                    className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all flex items-center gap-1 ${
+                      view === "STATS"
+                        ? "bg-white text-slate-900 shadow"
+                        : !gameInProgress && !historyData
+                          ? "text-slate-600 cursor-not-allowed opacity-50"
+                          : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    {!gameInProgress && !historyData && <Lock size={12} />}
+                    Report
+                  </button>
+                  <button
+                    onClick={() => setView("HISTORY")}
+                    className={`px-2 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-bold transition-all ${view === "HISTORY" ? "bg-white text-slate-900 shadow" : "text-slate-400 hover:text-white"}`}
+                  >
+                    History
+                  </button>
+                </div>
+              )}
             <button
               onClick={handleLogout}
               className="text-slate-400 hover:text-red-400 transition-colors"
@@ -1548,7 +1669,7 @@ export default function App() {
       )}
 
       <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
-        {!user && (
+        {!user && view === "AUTH" && (
           <AuthView
             authMode={authMode}
             setAuthMode={setAuthMode}
@@ -1558,9 +1679,59 @@ export default function App() {
             handleForgotPassword={handleForgotPassword}
             handleResetPassword={handleResetPassword}
             showNotification={showNotification}
+            selectedModule={selectedModule}
             handleDemoLogin={() =>
               setUser({ name: "Demo", email: "demo@subnscore.com" })
             }
+            // Pass selectedModule to AuthView for dynamic styling/text
+            selectedModule={selectedModule}
+            // Allow AuthView to navigate back to dashboard if needed
+            onBackToDashboard={() => setView("DASHBOARD")}
+          />
+        )}
+
+        {view === "DASHBOARD" && (
+          <ModuleSelectionView
+            onSelectModule={(module) => {
+              setSelectedModule(module);
+              if (module === "COACHING") {
+                if (user) setView("SETUP");
+                else setView("AUTH");
+              } else if (module === "COMMITTEE") {
+                // If user is already logged in, check role before redirecting
+                if (user && user.role !== "COMMITTEE") {
+                  showNotification("Access Denied: Not a Committee Member.");
+                }
+                if (user) setView("COMMITTEE_DASHBOARD");
+                else setView("AUTH");
+              }
+            }}
+          />
+        )}
+
+        {user && view === "COMMITTEE_DASHBOARD" && (
+          <CommitteeDashboardView
+            user={user}
+            showNotification={showNotification}
+            availableTeams={availableTeams}
+            onGameStart={(data) => {
+              setCommitteeGameData(data);
+              setView("COMMITTEE_LIVE");
+            }}
+          />
+        )}
+
+        {user && view === "COMMITTEE_LIVE" && committeeGameData && (
+          <CommitteeLiveView
+            initialData={committeeGameData}
+            showNotification={showNotification}
+            onBack={() => setView("COMMITTEE_DASHBOARD")}
+            clock={committeeClock}
+            setClock={setCommitteeClock}
+            isRunning={isCommitteeRunning}
+            setIsRunning={setIsCommitteeRunning}
+            quarter={committeeQuarter}
+            setQuarter={setCommitteeQuarter}
           />
         )}
 
@@ -1598,20 +1769,20 @@ export default function App() {
             court={court}
             roster={roster}
             playerStats={playerStats}
-            clock={clock}
-            isRunning={isRunning}
-            setIsRunning={setIsRunning}
-            quarter={quarter}
+            clock={coachingClock}
+            isRunning={isCoachingRunning}
+            setIsRunning={setIsCoachingRunning}
+            quarter={coachingQuarter}
             advanceQuarter={advanceQuarter}
             addStat={addStat}
             teamFouls={teamFouls}
             timeouts={timeouts}
             addTimeout={() => {
-              setTimeouts([...timeouts, { quarter, clock }]);
-              setIsRunning(false);
+              setTimeouts([...timeouts, { quarter, clock: coachingClock }]);
+              setIsCoachingRunning(false);
               setActionHistory((prev) => [
                 ...prev,
-                { type: "TIMEOUT", quarter, clock },
+                { type: "TIMEOUT", quarter, clock: coachingClock },
               ]);
             }}
             undoLastAction={undoLastAction}
@@ -1630,9 +1801,11 @@ export default function App() {
             roster={historyData ? historyData.roster : roster}
             playerStats={historyData ? historyData.stats : playerStats}
             stints={historyData ? historyData.stints : stints}
-            clock={historyData ? historyData.meta.final_clock || 0 : clock}
+            clock={
+              historyData ? historyData.meta.final_clock || 0 : coachingClock
+            }
             teamMeta={historyData ? historyData.meta : teamMeta}
-            quarter={historyData ? historyData.quarter : quarter}
+            quarter={historyData ? historyData.quarter : coachingQuarter}
             actionHistory={historyData ? historyData.actions : actionHistory}
             court={historyData ? [] : court}
             resetGame={() => {
@@ -1650,7 +1823,7 @@ export default function App() {
             gameMode={
               historyData ? historyData.meta.game_mode || "FULL" : gameMode
             }
-            lineupsByQuarter={
+            lineupsByQuarter={ // This is for coaching lineups
               historyData ? historyData.lineupsByQuarter : lineupsByQuarter
             }
           />
@@ -1678,8 +1851,8 @@ export default function App() {
             advanceQuarter(true); // Skip further confirmation
             setIsAdvanceQuarterConfirmOpen(false);
           }}
-          title={`End ${quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`}?`}
-          message={`Are you sure you want to end ${quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`} and advance to the next period?`}
+          title={`End ${coachingQuarter > 4 ? `Overtime ${coachingQuarter - 4}` : `Quarter ${coachingQuarter}`}?`}
+          message={`Are you sure you want to end ${coachingQuarter > 4 ? `Overtime ${coachingQuarter - 4}` : `Quarter ${coachingQuarter}`} and advance to the next period?`}
           confirmText="Advance Quarter"
           confirmButtonClass="bg-blue-600 hover:bg-blue-700"
         />

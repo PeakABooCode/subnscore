@@ -10,7 +10,7 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import { formatTime } from "../utils/helpers";
+import { formatTime } from "../../utils/helpers";
 
 export default function LiveView({
   court,
@@ -19,7 +19,7 @@ export default function LiveView({
   clock,
   isRunning,
   setIsRunning,
-  quarter, // Keep quarter here
+  quarter, // This is coachingQuarter
   advanceQuarter,
   addStat,
   teamFouls,

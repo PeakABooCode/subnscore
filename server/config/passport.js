@@ -116,8 +116,8 @@ passport.use(
         // 3. If neither exists, create a new user
         console.log(`Creating new user for Google ID: ${googleId}`);
         const newUser = await pool.query(
-          "INSERT INTO users (name, email, google_id) VALUES ($1, $2, $3) RETURNING *",
-          [name, email, googleId],
+          "INSERT INTO users (name, email, google_id, role) VALUES ($1, $2, $3, $4) RETURNING *",
+          [name, email, googleId, "COACH"], // Default Google signups to COACH
         );
         return done(null, newUser.rows[0]);
       } catch (err) {
@@ -136,7 +136,7 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email FROM users WHERE id = $1",
+      "SELECT id, name, email, role FROM users WHERE id = $1", // This is committeeQuarter
       [id],
     );
 

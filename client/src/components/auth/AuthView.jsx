@@ -5,6 +5,7 @@ import {
   Lock,
   User,
   Activity,
+  ClipboardCheck,
   Eye,
   EyeOff,
   ArrowLeft,
@@ -20,6 +21,8 @@ export default function AuthView({
   showNotification,
   handleForgotPassword,
   handleResetPassword,
+  onBackToDashboard, // New prop for navigating back
+  selectedModule, // New prop to identify the target module
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const [currentAuthView, setCurrentAuthView] = useState(authMode); // login, register, forgotPassword, resetPassword
@@ -31,34 +34,61 @@ export default function AuthView({
   return (
     <div className="flex items-center justify-center min-h-[80vh] px-4">
       <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-2xl border border-slate-100 relative overflow-hidden">
-        {/* Decorative Header Accent */}
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-900"></div>
+        {/* Dynamic Decorative Header Accent based on Module */}
+        <div
+          className={`absolute top-0 left-0 right-0 h-1.5 ${selectedModule === "COMMITTEE" ? "bg-amber-500" : "bg-slate-900"}`}
+        ></div>
 
         <div className="flex flex-col items-center mb-10">
-          <div className="bg-slate-900 p-3 rounded-2xl mb-4 shadow-lg">
-            <Activity className="text-amber-400" size={32} />
+          <div
+            className={`${selectedModule === "COMMITTEE" ? "bg-amber-500" : "bg-slate-900"} p-3 rounded-2xl mb-4 shadow-lg`}
+          >
+            {selectedModule === "COMMITTEE" ? (
+              <ClipboardCheck className="text-white" size={32} />
+            ) : (
+              <Activity className="text-amber-400" size={32} />
+            )}
           </div>
           <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter text-center flex items-center gap-2">
-            {currentAuthView === "forgotPassword" ||
-            currentAuthView === "resetPassword" ? (
-              <button
-                type="button"
-                onClick={() => setCurrentAuthView("login")}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <ArrowLeft size={24} />
-              </button>
-            ) : null}
+            {/* Conditional rendering for the back button based on currentAuthView */}
+            {
+              currentAuthView === "forgotPassword" ||
+              currentAuthView === "resetPassword" ? (
+                <button
+                  type="button"
+                  onClick={() => setCurrentAuthView("login")}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <ArrowLeft size={24} />
+                </button>
+              ) : currentAuthView === "login" ||
+                currentAuthView === "register" ? (
+                // Only show back to dashboard if on login/register
+                <button
+                  type="button"
+                  onClick={onBackToDashboard}
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <ArrowLeft size={24} />
+                </button>
+              ) : null /* If neither condition is met, render nothing */
+            }
             {currentAuthView === "login"
-              ? "Coach Login"
+              ? selectedModule === "COMMITTEE"
+                ? "Official Login"
+                : "Coach Login"
               : currentAuthView === "register"
-                ? "Register Coach"
+                ? selectedModule === "COMMITTEE"
+                  ? "Official Registration"
+                  : "Coach Registration"
                 : currentAuthView === "forgotPassword"
                   ? "Reset Password"
                   : "Set New Password"}
           </h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">
-            SubNScore Dashboard
+            {selectedModule === "COMMITTEE"
+              ? "Committee Scoresheet Module"
+              : "Coaching Staff Module"}
           </p>
         </div>
 
@@ -185,7 +215,7 @@ export default function AuthView({
 
             <button
               type="submit"
-              className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-[0.98] mt-4"
+              className={`w-full ${selectedModule === "COMMITTEE" ? "bg-amber-600 hover:bg-amber-700" : "bg-slate-900 hover:bg-black"} text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-lg transition-all active:scale-[0.98] mt-4`}
             >
               {currentAuthView === "login"
                 ? "Enter Courtside"

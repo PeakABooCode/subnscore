@@ -7,29 +7,24 @@ import pgSession from "connect-pg-simple";
 import passport from "passport";
 import pool from "./config/db.js";
 import rateLimit from "express-rate-limit";
-import "./config/passport.js"; // Imports our passport config
-import authRoutes from "./routes/authRoutes.js"; // Imports our routes
-import gameRoutes from "./routes/gameRoutes.js";
-import teamRoutes from "./routes/teamRoutes.js";
-
-/**PREPARING BACKEND FOR PRODUCTION  */
-// Add this to your main server.js file
 import path from "path";
 import { fileURLToPath } from "url";
+import "./config/passport.js";
+import authRoutes from "./routes/authRoutes.js";
+import coachingRoutes from "./routes/coachingRoutes.js";
+import committeeRoutes from "./routes/committeeRoutes.js";
+import { isOfficial } from "./config/middleware/roleMiddleware.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-//-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Trust the proxy (Render) to get the correct client IP for rate limiting
 if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
 
 // --- GLOBAL RATE LIMITING ---
-// Safety net: 100 requests every 15 minutes per IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -39,7 +34,6 @@ const globalLimiter = rateLimit({
 app.use(express.json());
 app.use(
   cors({
-    // Dynamically set origin based on environment or request origin
     origin: (origin, callback) => {
       const clientUrl = process.env.CLIENT_URL;
       const isAllowed =
@@ -47,11 +41,10 @@ app.use(
         origin === "http://localhost:5173" ||
         origin === "http://localhost:5000" ||
         origin === clientUrl ||
-        origin === clientUrl?.replace(/\/$/, "") || // Handle trailing slash
+        origin === clientUrl?.replace(/\/$/, "") ||
         origin.endsWith(".onrender.com");
 
       if (isAllowed) {
-        // Allow requests with no origin (like Postman) or from allowed origins
         callback(null, true);
       } else {
         callback(new Error(`Not allowed by CORS: ${origin}`));
@@ -61,7 +54,6 @@ app.use(
   }),
 );
 
-// Apply global limiter to all requests
 app.use(globalLimiter);
 
 // --- SESSION CONFIGURATION ---
@@ -70,16 +62,16 @@ app.use(
   session({
     store: new PgSession({
       pool: pool,
-      tableName: "session", // Tells it to use the table we created in pgAdmin
+      tableName: "session",
     }),
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    proxy: true, // Required for secure cookies behind a proxy like Render
+    proxy: true,
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // true if using HTTPS
+      secure: process.env.NODE_ENV === "production",
     },
   }),
 );
@@ -90,18 +82,16 @@ app.use(passport.session());
 
 // --- ROUTES ---
 app.use("/api/auth", authRoutes);
-app.use("/api/games", gameRoutes);
-app.use("/api/teams", teamRoutes);
-
+app.use("/api/coaching", coachingRoutes);
+app.use("/api/committee", isOfficial, committeeRoutes);
+ 
 // --- PRODUCTION STATIC ASSETS ---
-// Use process.cwd() to anchor paths to the project root on Render
 const clientBuildPath = path.join(__dirname, "../client/dist");
 
 console.log(`Folder for static assets: ${clientBuildPath}`);
 
 app.use(express.static(clientBuildPath));
 
-// The "catchall" handler: for any request that doesn't match an API route
 app.get("*all", (req, res) => {
   res.sendFile(path.join(clientBuildPath, "index.html"), (err) => {
     if (err) {
@@ -111,6 +101,15 @@ app.get("*all", (req, res) => {
         .send("The frontend build is missing. Check your Render build logs.");
     }
   });
+});
+
+// --- GLOBAL ERROR HANDLER ---
+// This prevents the server from crashing on unhandled errors and provides better debugging info
+app.use((err, req, res, next) => {
+  console.error("❌ Global Server Error:", err.stack);
+  res
+    .status(500)
+    .json({ error: "Internal Server Error", message: err.message });
 });
 
 app.listen(PORT, () => {

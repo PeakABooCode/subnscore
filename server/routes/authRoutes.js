@@ -45,7 +45,7 @@ const forgotPasswordLimiter = rateLimit({
 // --- REGISTER ROUTE ---
 router.post("/register", authLimiter, async (req, res) => {
   console.log(`📝 Attempting registration for: ${req.body.email}`);
-  const { name, email, password } = req.body;
+  const { name, email, password, role } = req.body;
 
   // 1. Input Validation
   if (!name || !email || !password) {
@@ -61,8 +61,8 @@ router.post("/register", authLimiter, async (req, res) => {
 
     // Save to database
     const newUser = await pool.query(
-      "INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email",
-      [name, email, passwordHash],
+      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role",
+      [name, email, passwordHash, role || "COACH"],
     );
 
     // 2. Safe data access
@@ -84,16 +84,39 @@ router.post("/register", authLimiter, async (req, res) => {
 
 // --- LOGIN ROUTE ---
 router.post("/login", authLimiter, (req, res, next) => {
+  console.log("🔑 Login request received for:", req.body.email);
+  const { role: requestedRole } = req.body;
+
   passport.authenticate("local", (err, user, info) => {
     if (err) return next(err);
     if (!user) {
       // Return the specific message from the Passport Strategy
       return res.status(401).json({ error: info?.message || "Login failed" });
     }
+
+    // ROLE VALIDATION: Ensure user role matches the module portal they are using
+    // Default to 'COACH' if role is missing in DB
+    const userRole = (user.role || "COACH").toUpperCase();
+    const targetRole = (requestedRole || "COACH").toUpperCase();
+
+    if (userRole !== targetRole) {
+      return res.status(403).json({
+        error: `Access Denied: Your account role (${userRole}) does not match the ${targetRole} module.`,
+      });
+    }
+
     req.login(user, (loginErr) => {
       if (loginErr) return next(loginErr);
-      // Successful login
-      res.json({ message: "Logged in successfully", user });
+
+      // Return sanitized user object (No password hash)
+      const sanitizedUser = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      };
+
+      res.json({ message: "Logged in successfully", user: sanitizedUser });
     });
   })(req, res, next);
 });

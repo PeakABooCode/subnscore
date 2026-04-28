@@ -1,4 +1,4 @@
-import pool from "../config/db.js";
+import pool from "../../config/db.js";
 
 export const saveRoster = async (req, res) => {
   const { teamName, roster, league, season } = req.body;

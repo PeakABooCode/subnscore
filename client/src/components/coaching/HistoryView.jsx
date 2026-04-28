@@ -10,7 +10,7 @@ import {
   X,
   Download,
 } from "lucide-react";
-import ConfirmationModal from "./ConfirmationModal";
+import ConfirmationModal from "../common/ConfirmationModal";
 
 export default function HistoryView({ onViewGame }) {
   const [games, setGames] = useState([]);
@@ -24,7 +24,7 @@ export default function HistoryView({ onViewGame }) {
   useEffect(() => {
     const fetchGames = async () => {
       try {
-        const res = await axios.get("/api/games");
+        const res = await axios.get("/api/coaching/games");
         setGames(res.data);
       } catch (err) {
         console.error("Error fetching games", err);
@@ -43,7 +43,7 @@ export default function HistoryView({ onViewGame }) {
 
   const confirmDelete = async () => {
     try {
-      await axios.delete(`/api/games/${gameToDelete}`);
+      await axios.delete(`/api/coaching/games/${gameToDelete}`);
       setGames(games.filter((g) => g.id !== gameToDelete));
       setIsConfirmOpen(false);
       setGameToDelete(null);

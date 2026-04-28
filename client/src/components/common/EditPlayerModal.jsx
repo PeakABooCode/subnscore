@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { X, User, Hash } from "lucide-react";
-import { capitalizeWords } from "../utils/helpers";
+import { capitalizeWords } from "../../utils/helpers";
 
 export default function EditPlayerModal({ player, isOpen, onClose, onSave }) {
   const [editedName, setEditedName] = useState("");
