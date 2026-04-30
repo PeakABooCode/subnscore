@@ -62,9 +62,9 @@ export const initializeOfficialGame = async (req, res) => {
     // Note: We are using team_id as Team A and opponent_name as Team B's name for compatibility,
     // but we can store Team B's ID in a new column later if needed.
     const gameRes = await pool.query(
-      `INSERT INTO official_games (team_a_id, team_b_id, team_b_name, game_mode, league, season, official_id, lineups_by_quarter, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'LIVE') RETURNING id`,
-      [teamAData.teamId, teamBData.teamId, teamBName, "FULL", league, season, officialId, JSON.stringify(initialLineups)],
+      `INSERT INTO official_games (team_a_id, team_b_id, team_b_name, game_mode, league, season, division, official_id, lineups_by_quarter, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'LIVE') RETURNING id`,
+      [teamAData.teamId, teamBData.teamId, teamBName, "FULL", league, season, division, officialId, JSON.stringify(initialLineups)],
     );
 
     const gameId = gameRes.rows[0].id;
@@ -139,6 +139,7 @@ export const saveOfficialGame = async (req, res) => {
 
 export const getOfficialGames = async (req, res) => {
   const officialId = req.user.id;
+  console.log(officialId);
   try {
     const result = await pool.query(
       `SELECT g.*, 

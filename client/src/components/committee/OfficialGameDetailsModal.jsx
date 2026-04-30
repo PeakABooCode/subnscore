@@ -1,7 +1,5 @@
 OfficialGameDetailsModal
 
-
-
 import React from "react";
 import { X, History, Trophy, Clock } from "lucide-react";
 import { formatTime } from "../../utils/helpers";

@@ -43,7 +43,8 @@ export default function CommitteeLiveView({
   teamBPlayerMap, // New prop
 }) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isAdvanceQuarterConfirmOpen, setIsAdvanceQuarterConfirmOpen] = useState(false);
+  const [isAdvanceQuarterConfirmOpen, setIsAdvanceQuarterConfirmOpen] =
+    useState(false);
   const [isSaveGameConfirmOpen, setIsSaveGameConfirmOpen] = useState(false);
   const [shotClock, setShotClock] = useState(24);
   const [shotClockPulse, setShotClockPulse] = useState(false);
@@ -51,7 +52,8 @@ export default function CommitteeLiveView({
   const [scores, setScores] = useState({ A: 0, B: 0 });
   const [teamFouls, setTeamFouls] = useState({ A: 0, B: 0 });
 
-  const periodName = quarter > 4 ? `Overtime ${quarter - 4}` : `Period ${quarter}`;
+  const periodName =
+    quarter > 4 ? `Overtime ${quarter - 4}` : `Period ${quarter}`;
 
   const buzzerRef = useRef(null);
 
@@ -66,7 +68,8 @@ export default function CommitteeLiveView({
       return timeouts[team].filter((t) => t.quarter <= 2).length;
     } else if (quarter <= 4) {
       // Second Half allowance
-      return timeouts[team].filter((t) => t.quarter === 3 || t.quarter === 4).length;
+      return timeouts[team].filter((t) => t.quarter === 3 || t.quarter === 4)
+        .length;
     } else {
       // Overtime: 1 per period
       return timeouts[team].filter((t) => t.quarter === quarter).length;
@@ -86,13 +89,15 @@ export default function CommitteeLiveView({
 
   // --- AUDIO BUZZER LOGIC ---
   useEffect(() => {
-    buzzerRef.current = new Audio('/sounds/buzzer.mp3'); // Make sure you have a buzzer.mp3 in your public/sounds folder
+    buzzerRef.current = new Audio("/sounds/buzzer.mp3"); // Make sure you have a buzzer.mp3 in your public/sounds folder
     buzzerRef.current.volume = 0.5; // Adjust volume as needed
   }, []);
 
   const playBuzzer = () => {
     if (buzzerRef.current) {
-      buzzerRef.current.play().catch(e => console.error("Error playing buzzer sound:", e));
+      buzzerRef.current
+        .play()
+        .catch((e) => console.error("Error playing buzzer sound:", e));
     }
   };
 
@@ -130,14 +135,19 @@ export default function CommitteeLiveView({
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (event) => {
-      const { toggleGameClock, resetShotClock24, resetShotClock14 } = committeeKeybindings;
-      if ([toggleGameClock, resetShotClock24, resetShotClock14].includes(event.code)) {
+      const { toggleGameClock, resetShotClock24, resetShotClock14 } =
+        committeeKeybindings;
+      if (
+        [toggleGameClock, resetShotClock24, resetShotClock14].includes(
+          event.code,
+        )
+      ) {
         event.preventDefault();
       }
 
       switch (event.code) {
         case toggleGameClock:
-          setIsRunning(prev => !prev); // Toggle game clock
+          setIsRunning((prev) => !prev); // Toggle game clock
           break;
         case resetShotClock24: // 'R' key for Reset 24s
           triggerShotClockPulse(24);
@@ -149,8 +159,8 @@ export default function CommitteeLiveView({
           break;
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown); // Dependencies ensure the latest state setters are used
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown); // Dependencies ensure the latest state setters are used
   }, [setIsRunning, setShotClock, committeeKeybindings]);
 
   // --- SYNC WITH EXTERNAL SCOREBOARD ---
@@ -212,7 +222,11 @@ export default function CommitteeLiveView({
         clock,
         possessionArrow,
         shotClock,
-        timeouts: { A: getUsedTimeoutsCount("A"), B: getUsedTimeoutsCount("B"), max: maxTimeouts },
+        timeouts: {
+          A: getUsedTimeoutsCount("A"),
+          B: getUsedTimeoutsCount("B"),
+          max: maxTimeouts,
+        },
       });
       syncChannel.close();
     }, 1000);
@@ -245,7 +259,8 @@ export default function CommitteeLiveView({
       type: "SCORE",
       team,
       playerId,
-      dbPlayerId: (team === 'A' ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId, // Store the DB ID
+      dbPlayerId:
+        (team === "A" ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId, // Store the DB ID
       playerName: player.name,
       jersey: player.jersey,
       amount,
@@ -278,7 +293,8 @@ export default function CommitteeLiveView({
       type: "FOUL",
       team,
       playerId,
-      dbPlayerId: (team === 'A' ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId, // Store the DB ID
+      dbPlayerId:
+        (team === "A" ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId, // Store the DB ID
       playerName: player.name,
       jersey: player.jersey,
       quarter,
@@ -302,7 +318,9 @@ export default function CommitteeLiveView({
 
     setIsRunning(false); // FIBA rules: Clock stops
     addLog({ type: "TIMEOUT", team, quarter, clock });
-    showNotification(`Timeout called for ${team === "A" ? initialData.teamAName : initialData.teamBName}`);
+    showNotification(
+      `Timeout called for ${team === "A" ? initialData.teamAName : initialData.teamBName}`,
+    );
   };
 
   const handleSaveGame = async () => {
@@ -329,6 +347,8 @@ export default function CommitteeLiveView({
   };
 
   const handleJumpBall = () => {
+    setIsRunning(false);
+
     if (possessionArrow === null) {
       // First jump ball of the game logic:
       // Prompt official to pick who won the tip.
@@ -337,20 +357,33 @@ export default function CommitteeLiveView({
     }
     const next = possessionArrow === "A" ? "B" : "A";
     setPossessionArrow(next);
-    addLog({ type: "ARROW_FLIP", to: possessionArrow, team: possessionArrow, quarter, clock });
+    addLog({
+      type: "ARROW_FLIP",
+      to: possessionArrow,
+      team: possessionArrow,
+      quarter,
+      clock,
+    });
   };
 
   const setInitialJumpBall = (winner) => {
     const arrowPointsTo = winner === "A" ? "B" : "A";
     setPossessionArrow(arrowPointsTo);
     showNotification(`Arrow points to Team ${arrowPointsTo}`);
-    addLog({ type: "GAME_START", winner, arrow: arrowPointsTo, quarter: 1, clock: 600 });
+    addLog({
+      type: "GAME_START",
+      winner,
+      arrow: arrowPointsTo,
+      quarter: 1,
+      clock: 600,
+    });
   };
 
   const advanceQuarter = () => {
     setIsRunning(false); // Ensure clock is paused before advancing
     const nextQ = quarter + 1;
-    const nextPeriodName = nextQ > 4 ? `Overtime ${nextQ - 4}` : `Period ${nextQ}`;
+    const nextPeriodName =
+      nextQ > 4 ? `Overtime ${nextQ - 4}` : `Period ${nextQ}`;
 
     // Log the end of the current period
     addLog({ type: "PERIOD_END", quarter, clock });
@@ -359,7 +392,9 @@ export default function CommitteeLiveView({
       // Q2 and beyond: the arrow team used their possession this quarter, so flip the arrow
       const nextArrow = possessionArrow === "A" ? "B" : "A";
       setPossessionArrow(nextArrow);
-      showNotification(`${nextPeriodName} started. Arrow flipped to ${nextArrow}.`);
+      showNotification(
+        `${nextPeriodName} started. Arrow flipped to ${nextArrow}.`,
+      );
 
       addLog({
         type: "ARROW_FLIP",
@@ -399,8 +434,6 @@ export default function CommitteeLiveView({
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 pb-20">
-      
-
       {/* 1. TOP SCOREBOARD UNIT */}
       <div className="bg-slate-900 text-white p-4 md:p-6 rounded-3xl shadow-2xl border-b-4 border-amber-500 sticky top-2 md:top-4 z-50">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 md:gap-0">
@@ -419,9 +452,7 @@ export default function CommitteeLiveView({
                 >
                   -1
                 </button>
-                <button
-                  onClick={() => handleManualScoreAdjustment("A", 1)}
-                >
+                <button onClick={() => handleManualScoreAdjustment("A", 1)}>
                   +1
                 </button>
               </div>
@@ -433,7 +464,7 @@ export default function CommitteeLiveView({
                 {Array.from({ length: maxTimeouts }).map((_, i) => (
                   <div
                     key={i}
-                    className={`w-4 h-1.5 rounded-full ${i < (maxTimeouts - getUsedTimeoutsCount("A")) ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-700"}`}
+                    className={`w-4 h-1.5 rounded-full ${i < maxTimeouts - getUsedTimeoutsCount("A") ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-700"}`}
                   />
                 ))}
               </div>
@@ -470,61 +501,82 @@ export default function CommitteeLiveView({
               </button>
 
               <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 transition-colors"
-              title="Keyboard Shortcuts Settings"
-            >
-              <Settings size={16} />
-            </button>
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 transition-colors"
+                title="Keyboard Shortcuts Settings"
+              >
+                <Settings size={16} />
+              </button>
 
-            
               {/* Keyboard Settings Modal - Rendered directly in CommitteeLiveView */}
               <KeyboardSettingsModal
-              isOpen={isSettingsModalOpen}
-              onClose={() => setIsSettingsModalOpen(false)}
-              keybindings={committeeKeybindings}
-              setKeybindings={setCommitteeKeybindings}
-              showNotification={showNotification}
+                isOpen={isSettingsModalOpen}
+                onClose={() => setIsSettingsModalOpen(false)}
+                keybindings={committeeKeybindings}
+                setKeybindings={setCommitteeKeybindings}
+                showNotification={showNotification}
               />
             </div>
-            
 
             {/* Official Game Clock Controls */}
             <div className="flex flex-col items-center mb-6 bg-slate-800/50 p-3 rounded-2xl border border-slate-700 w-full gap-4">
               <div className="flex items-center gap-6">
                 <div className="flex flex-col items-center">
-                  <span className="text-[8px] font-black text-slate-500 uppercase mb-1">Game Clock</span>
+                  <span className="text-[8px] font-black text-slate-500 uppercase mb-1">
+                    Game Clock
+                  </span>
                   <div className="text-4xl font-mono font-black tabular-nums text-amber-500">
                     {formatTime(clock)}
                   </div>
                 </div>
                 <div className="w-px h-10 bg-slate-700"></div>
                 <div className="flex flex-col items-center">
-                  <span className="text-[8px] font-black text-slate-500 uppercase mb-1">Shot Clock</span>
-                  <div className={`text-4xl font-mono font-black tabular-nums transition-all duration-300 ${
-                    shotClockPulse ? 'scale-125 text-white drop-shadow-[0_0_15px_rgba(245,158,11,1)]' :
-                    shotClock <= 10 ? 'text-red-500 animate-pulse' : 'text-amber-500'}`}>
+                  <span className="text-[8px] font-black text-slate-500 uppercase mb-1">
+                    Shot Clock
+                  </span>
+                  <div
+                    className={`text-4xl font-mono font-black tabular-nums transition-all duration-300 ${
+                      shotClockPulse
+                        ? "scale-125 text-white drop-shadow-[0_0_15px_rgba(245,158,11,1)]"
+                        : shotClock <= 10
+                          ? "text-red-500 animate-pulse"
+                          : "text-amber-500"
+                    }`}
+                  >
                     {shotClock}
                   </div>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2 w-full">
                 <div className="flex gap-1">
                   <button
                     onClick={() => setIsRunning(!isRunning)}
                     className={`flex-1 py-2.5 rounded-2xl font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 border-b-4 ${
-                      isRunning ? "bg-red-600 border-red-800 text-white hover:bg-red-500" : "bg-emerald-500 border-emerald-700 text-white hover:bg-emerald-400"
+                      isRunning
+                        ? "bg-red-600 border-red-800 text-white hover:bg-red-500"
+                        : "bg-emerald-500 border-emerald-700 text-white hover:bg-emerald-400"
                     }`}
                   >
-                    {isRunning ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                    {isRunning ? (
+                      <Pause size={16} fill="currentColor" />
+                    ) : (
+                      <Play size={16} fill="currentColor" />
+                    )}
                     {/* {isRunning ? "Stop Clock" : "Start Clock"} */}
                   </button>
                   <button
-                    onClick={() => { setIsRunning(false); setClock(600); triggerShotClockPulse(24); }}
+                    onClick={() => {
+                      setIsRunning(false);
+                      setClock(600);
+                      triggerShotClockPulse(24);
+                    }}
                     className="p-2.5 bg-slate-900 border-2 border-slate-700 hover:border-amber-500 rounded-2xl text-slate-400 hover:text-amber-500 transition-all group shadow-inner"
                   >
-                    <History size={18} className="group-hover:rotate-[-45deg] transition-transform" />
+                    <History
+                      size={18}
+                      className="group-hover:rotate-[-45deg] transition-transform"
+                    />
                   </button>
                 </div>
                 <div className="flex gap-2">
@@ -532,15 +584,23 @@ export default function CommitteeLiveView({
                     onClick={() => triggerShotClockPulse(24)}
                     className="flex-1 flex flex-col items-center justify-center bg-slate-950 border-2 border-slate-700 hover:border-slate-500 rounded-xl py-1.5 transition-all group shadow-lg"
                   >
-                    <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest mb-0.5 group-hover:text-slate-300">Reset</span>
-                    <span className="text-xl font-mono font-black text-amber-500 leading-none">24</span>
+                    <span className="text-[6px] font-black text-slate-500 uppercase tracking-widest mb-0.5 group-hover:text-slate-300">
+                      Reset
+                    </span>
+                    <span className="text-xl font-mono font-black text-amber-500 leading-none">
+                      24
+                    </span>
                   </button>
                   <button
                     onClick={() => triggerShotClockPulse(14)}
                     className="flex-1 flex flex-col items-center justify-center bg-slate-950 border-2 border-amber-900/40 hover:border-amber-600 rounded-xl py-1.5 transition-all group shadow-lg"
                   >
-                    <span className="text-[6px] font-black text-amber-900/60 uppercase tracking-widest mb-0.5 group-hover:text-amber-500">Reset</span>
-                    <span className="text-xl font-mono font-black text-red-500 leading-none">14</span>
+                    <span className="text-[6px] font-black text-amber-900/60 uppercase tracking-widest mb-0.5 group-hover:text-amber-500">
+                      Reset
+                    </span>
+                    <span className="text-xl font-mono font-black text-red-500 leading-none">
+                      14
+                    </span>
                   </button>
                 </div>
               </div>
@@ -589,9 +649,7 @@ export default function CommitteeLiveView({
                 >
                   -1
                 </button>
-                <button
-                  onClick={() => handleManualScoreAdjustment("B", 1)}
-                >
+                <button onClick={() => handleManualScoreAdjustment("B", 1)}>
                   +1
                 </button>
               </div>
@@ -603,7 +661,7 @@ export default function CommitteeLiveView({
                 {Array.from({ length: maxTimeouts }).map((_, i) => (
                   <div
                     key={i}
-                    className={`w-4 h-1.5 rounded-full ${i < (maxTimeouts - getUsedTimeoutsCount("B")) ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-700"}`}
+                    className={`w-4 h-1.5 rounded-full ${i < maxTimeouts - getUsedTimeoutsCount("B") ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-700"}`}
                   />
                 ))}
               </div>
@@ -693,58 +751,79 @@ export default function CommitteeLiveView({
           <div className="space-y-2 h-40 overflow-y-auto pr-2 custom-scrollbar">
             {logs.length === 0 ? (
               <p className="text-xs text-slate-300 italic text-center py-10">
-                Waiting for tip-off...
+                WAITING FOR TIP OFF...
               </p>
             ) : (
-            logs.slice(0, 50).map((log, i) => (
+              logs.slice(0, 50).map((log, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-100 animate-in slide-in-from-top-1"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-[8px] font-black bg-slate-900 text-white w-5 h-5 rounded-full flex items-center justify-center">
-                      {log.quarter > 4 ? `OT${log.quarter - 4}` : `Q${log.quarter}`}
+                      {log.quarter > 4
+                        ? `OT${log.quarter - 4}`
+                        : `Q${log.quarter}`}
                     </span>
                     {log.type === "TIMEOUT" ? (
-                      <span className={`text-[10px] font-black uppercase ${log.team === "A" ? "text-blue-600" : "text-red-600"}`}>
-                        TEAM {log.team === "A" ? initialData.teamAName : initialData.teamBName} TIMEOUT
+                      <span
+                        className={`text-[10px] font-black uppercase ${log.team === "A" ? "text-blue-600" : "text-red-600"}`}
+                      >
+                        TEAM{" "}
+                        {log.team === "A"
+                          ? initialData.teamAName
+                          : initialData.teamBName}{" "}
+                        TIMEOUT
                       </span>
-                                          ) : log.type === "SCORE_ADJUST" ? (
-                      <span className={`text-[10px] font-black uppercase ${log.team === "A" ? "text-blue-600" : "text-red-600"}`}>
-                        TEAM {log.team === "A" ? initialData.teamAName : initialData.teamBName} SCORE ADJ
+                    ) : log.type === "SCORE_ADJUST" ? (
+                      <span
+                        className={`text-[10px] font-black uppercase ${log.team === "A" ? "text-blue-600" : "text-red-600"}`}
+                      >
+                        TEAM{" "}
+                        {log.team === "A"
+                          ? initialData.teamAName
+                          : initialData.teamBName}{" "}
+                        SCORE ADJ
                       </span>
                     ) : (
-                      <span className={`text-[10px] font-black uppercase ${log.team === "A" ? "text-blue-600" : "text-red-600"}`}>
-                        {log.type === "GAME_START" || log.type === "PERIOD_END" || log.type === "ARROW_FLIP"
+                      <span
+                        className={`text-[10px] font-black uppercase ${log.team === "A" ? "text-blue-600" : "text-red-600"}`}
+                      >
+                        {log.type === "GAME_START" ||
+                        log.type === "PERIOD_END" ||
+                        log.type === "ARROW_FLIP"
                           ? ""
                           : `#${log.jersey} ${log.playerName}`}
                       </span>
                     )}
                   </div>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
-                    log.type === "FOUL" 
-                      ? "bg-red-100 text-red-700" 
-                      : log.type === "TIMEOUT"
-                        ? "bg-amber-100 text-amber-700"
-                        : (log.type === "SCORE" || log.type === "SCORE_ADJUST")
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-slate-100 text-slate-700" // Default for other types
-                  }`}>
-                    {log.type === "FOUL" 
-                      ? "Personal Foul" 
-                      : log.type === "TIMEOUT" 
-                        ? "Timeout"
-                        : log.type === "SCORE"
-                          ? `+${log.amount} PTS`
-                          : log.type === "GAME_START"
-                            ? `Tip-off won by Team ${log.winner}`
-                            : log.type === "PERIOD_END"
-                              ? `End of ${log.quarter > 4 ? `OT ${log.quarter - 4}` : `Q${log.quarter}`}`
-                              : log.type === "ARROW_FLIP"
-                                ? `Possession to Team ${log.to}`
-                                 : log.type === "SCORE_ADJUST"
-                                  ? `${log.amount > 0 ? '+' : ''}${log.amount} PTS ADJ`
-                                : log.type // Fallback to raw type if unknown
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                      log.type === "FOUL"
+                        ? "bg-red-100 text-red-700"
+                        : log.type === "TIMEOUT"
+                          ? "bg-amber-100 text-amber-700"
+                          : log.type === "SCORE" || log.type === "SCORE_ADJUST"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-100 text-slate-700" // Default for other types
+                    }`}
+                  >
+                    {
+                      log.type === "FOUL"
+                        ? "PERSONAL FOUL"
+                        : log.type === "TIMEOUT"
+                          ? "TIMEOUT"
+                          : log.type === "SCORE"
+                            ? `+${log.amount} PTS`
+                            : log.type === "GAME_START"
+                              ? `TIP-OFF WON BY TEAM ${log.winner === "A" ? initialData.teamAName : initialData.teamBName}`
+                              : log.type === "PERIOD_END"
+                                ? `END OF ${log.quarter > 4 ? `OT ${log.quarter - 4}` : `Q${log.quarter}`}`
+                                : log.type === "ARROW_FLIP"
+                                  ? `POSSESSION TO TEAM ${log.team === "A" ? initialData.teamAName : initialData.teamBName}`
+                                  : log.type === "SCORE_ADJUST"
+                                    ? `${log.amount > 0 ? "+" : ""}${log.amount} PTS ADJ`
+                                    : log.type // Fallback to raw type if unknown
                     }
                   </span>
                 </div>

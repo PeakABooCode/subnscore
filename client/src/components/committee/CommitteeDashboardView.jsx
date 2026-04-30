@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import {
   Users,
@@ -8,13 +8,14 @@ import {
   Calendar,
   PlayCircle,
   ClipboardCheck,
-  Search,
   History,
   ChevronRight,
   List,
 } from "lucide-react";
 import TeamSelectionModal from "../common/TeamSelectionModal";
 import OfficialGameDetailsModal from "./OfficialGameDetailsModal";
+import ConfirmationModal from "../common/ConfirmationModal";
+import MetadataSelectionModal from "../common/MetadataSelectionModal"; // New import
 
 export default function CommitteeDashboardView({
   user,
@@ -30,6 +31,8 @@ export default function CommitteeDashboardView({
 
   const [historyGames, setHistoryGames] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isDeleteGameConfirmOpen, setIsDeleteGameConfirmOpen] = useState(false);
+  const [gameToDelete, setGameToDelete] = useState(null);
 
   const [selectedGameDetails, setSelectedGameDetails] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -41,6 +44,83 @@ export default function CommitteeDashboardView({
   // Input state for adding players
   const [newPlayerA, setNewPlayerA] = useState({ name: "", jersey: "" });
   const [newPlayerB, setNewPlayerB] = useState({ name: "", jersey: "" });
+
+  // --- Suggestion States ---
+  const [showLeagueSuggestions, setShowLeagueSuggestions] = useState(false);
+  const [showDivisionSuggestions, setShowDivisionSuggestions] = useState(false);
+  const [showSeasonSuggestions, setShowSeasonSuggestions] = useState(false);
+
+  // --- "Browse All" Modal States ---
+  const [isLeagueModalOpen, setIsLeagueModalOpen] = useState(false);
+  const [isDivisionModalOpen, setIsDivisionModalOpen] = useState(false);
+  const [isSeasonModalOpen, setIsSeasonModalOpen] = useState(false);
+
+  // Derive unique lists from availableTeams for suggestions
+  const uniqueLeagues = useMemo(
+    () => [...new Set(availableTeams.map((t) => t.league).filter(Boolean))],
+    [availableTeams],
+  );
+  const uniqueDivisions = useMemo(
+    () => [...new Set(availableTeams.map((t) => t.division).filter(Boolean))],
+    [availableTeams],
+  );
+  const uniqueSeasons = useMemo(
+    () => [
+      ...new Set(
+        availableTeams
+          .map((t) => t.season)
+          .filter(Boolean)
+          .map((s) => s.toString()),
+      ),
+    ], // Ensure season is string for comparison
+    [availableTeams],
+  );
+
+  // Filtered suggestions — only show items matching what the user has typed
+  const filteredLeagues = useMemo(
+    () =>
+      league
+        ? uniqueLeagues.filter(
+            (l) =>
+              l.toLowerCase().includes(league.toLowerCase()) && l !== league,
+          )
+        : [],
+    [uniqueLeagues, league],
+  );
+  const filteredDivisions = useMemo(
+    () =>
+      division
+        ? uniqueDivisions.filter(
+            (d) =>
+              d.toLowerCase().includes(division.toLowerCase()) && d !== division,
+          )
+        : [],
+    [uniqueDivisions, division],
+  );
+  const filteredSeasons = useMemo(
+    () =>
+      season
+        ? uniqueSeasons.filter(
+            (s) =>
+              s.toLowerCase().includes(season.toLowerCase()) && s !== season,
+          )
+        : [],
+    [uniqueSeasons, season],
+  );
+
+  // Filter teams based on selected tournament metadata to enforce consistency
+  const filteredTeams = useMemo(() => {
+    // If no metadata is selected, we hide all teams to ensure the user picks a category first
+    if (!league && !division && !season) return [];
+
+    return availableTeams.filter((t) => {
+      // A team matches if it aligns with all currently filled metadata fields
+      const matchLeague = !league || t.league === league;
+      const matchDivision = !division || t.division === division;
+      const matchSeason = !season || t.season?.toString() === season;
+      return matchLeague && matchDivision && matchSeason;
+    });
+  }, [availableTeams, league, division, season]);
 
   useEffect(() => {
     if (activeTab === "history") {
@@ -67,17 +147,16 @@ export default function CommitteeDashboardView({
       setIsDetailsModalOpen(true);
     } catch (err) {
       showNotification(
-        err.response?.data?.error || "Failed to load game details."
+        err.response?.data?.error || "Failed to load game details.",
       );
     }
   };
 
   const handleDeleteGame = async (gameId) => {
-    if (!window.confirm("Are you sure you want to delete this official record?")) return;
     try {
       await axios.delete(`/api/committee/games/${gameId}`);
       showNotification("Game deleted.");
-      fetchHistory();
+      fetchHistory(); // refresh list after delete
     } catch (err) {
       showNotification("Failed to delete game.");
     }
@@ -106,6 +185,54 @@ export default function CommitteeDashboardView({
       showNotification(`Loaded roster for ${team.name}`);
     } catch (err) {
       showNotification("Failed to load team roster.");
+    }
+  };
+
+  // New handler for selecting metadata (league, division, season)
+  const handleMetadataSelect = (type, value) => {
+    let filteredBySelection = availableTeams;
+
+    if (type === "league") {
+      setLeague(value);
+      filteredBySelection = availableTeams.filter((t) => t.league === value);
+      setShowLeagueSuggestions(false);
+    } else if (type === "division") {
+      setDivision(value);
+      filteredBySelection = availableTeams.filter((t) => t.division === value);
+      setShowDivisionSuggestions(false);
+    } else if (type === "season") {
+      setSeason(value);
+      filteredBySelection = availableTeams.filter(
+        (t) => t.season.toString() === value,
+      );
+      setShowSeasonSuggestions(false);
+    }
+
+    // Auto-populate other fields if unambiguous
+    const uniqueDivisionsForSelection = [
+      ...new Set(filteredBySelection.map((t) => t.division).filter(Boolean)),
+    ];
+    if (uniqueDivisionsForSelection.length === 1 && type !== "division") {
+      setDivision(uniqueDivisionsForSelection[0]);
+    }
+
+    const uniqueSeasonsForSelection = [
+      ...new Set(
+        filteredBySelection
+          .map((t) => t.season)
+          .filter(Boolean)
+          .map((s) => s.toString()),
+      ),
+    ];
+    if (uniqueSeasonsForSelection.length === 1 && type !== "season") {
+      setSeason(uniqueSeasonsForSelection[0]);
+    }
+
+    const uniqueLeaguesForSelection = [
+      ...new Set(filteredBySelection.map((t) => t.league).filter(Boolean)),
+    ];
+    if (uniqueLeaguesForSelection.length === 1 && type !== "league") {
+      setLeague(uniqueLeaguesForSelection[0]);
     }
   };
 
@@ -262,10 +389,13 @@ export default function CommitteeDashboardView({
                           {game.league} • {game.division}
                         </h4>
                       </div>
+
+                      {/* ✅ FIXED DELETE BUTTON */}
                       <button
                         onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteGame(game.id);
+                          e.stopPropagation(); // 🔥 prevents opening report
+                          setGameToDelete(game.id);
+                          setIsDeleteGameConfirmOpen(true);
                         }}
                         className="text-slate-300 hover:text-red-500 transition-colors"
                       >
@@ -282,7 +412,11 @@ export default function CommitteeDashboardView({
                           {game.final_score_a}
                         </p>
                       </div>
-                      <div className="text-slate-200 font-black text-xl">VS</div>
+
+                      <div className="text-slate-200 font-black text-xl">
+                        VS
+                      </div>
+
                       <div className="flex-1 text-center">
                         <p className="text-[10px] font-black uppercase text-slate-500 truncate">
                           {game.team_b_display}
@@ -295,7 +429,9 @@ export default function CommitteeDashboardView({
 
                     <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
                       <span className="text-[10px] font-black text-slate-400 uppercase">
-                        {game.status === 'COMPLETED' ? 'Final Result' : 'In Progress'}
+                        {game.status === "COMPLETED"
+                          ? "Final Result"
+                          : "In Progress"}
                       </span>
                       <div className="flex items-center gap-1 text-amber-600 font-black text-[10px] uppercase">
                         Season {game.season} <ChevronRight size={12} />
@@ -309,121 +445,264 @@ export default function CommitteeDashboardView({
         </div>
       ) : (
         <>
-      {/* Tournament Details Section */}
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-3 mb-6">
-          <Trophy className="text-amber-500" size={24} />
-          Tournament Details
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
-              League Name {setupAttempted && !league && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <Trophy className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                className={`w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none text-sm font-bold transition-all ${
-                  setupAttempted && !league
-                    ? "border-red-500 bg-red-50 ring-4 ring-red-100"
-                    : "border-slate-200 focus:ring-4 focus:ring-slate-100"
-                }`}
-                placeholder="e.g. NBA"
-                value={league}
-                onChange={(e) => setLeague(e.target.value)}
-              />
-            </div>
-          </div>
+          {/* Tournament Details Section */}
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight flex items-center gap-3 mb-6">
+              <Trophy className="text-amber-500" size={24} />
+              Tournament Details
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* League Name Input with Suggestions */}
               <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
-              Division {setupAttempted && !division && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                className={`w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none text-sm font-bold transition-all ${
-                  setupAttempted && !division
-                    ? "border-red-500 bg-red-50 ring-4 ring-red-100"
-                    : "border-slate-200 focus:ring-4 focus:ring-slate-100"
-                }`}
-                placeholder="e.g. U17 / Seniors"
-                value={division}
-                onChange={(e) => setDivision(e.target.value)}
-              />
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
+                  League Name{" "}
+                  {setupAttempted && !league && (
+                    <span className="text-red-500">*</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Trophy
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <input
+                    className={`w-full pl-12 pr-12 py-3 bg-slate-50 border rounded-xl outline-none text-sm font-bold transition-all ${
+                      setupAttempted && !league
+                        ? "border-red-500 bg-red-50 ring-4 ring-red-100"
+                        : "border-slate-200 focus:ring-4 focus:ring-slate-100"
+                    }`}
+                    placeholder="e.g. NBA"
+                    value={league}
+                    onChange={(e) => setLeague(e.target.value)}
+                    onFocus={() => setShowLeagueSuggestions(true)}
+                    onBlur={() =>
+                      setTimeout(() => setShowLeagueSuggestions(false), 150)
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsLeagueModalOpen(true)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                    title="Browse Leagues"
+                  >
+                    <List size={16} />
+                  </button>
+                  {showLeagueSuggestions && filteredLeagues.length > 0 && (
+                    <div className="absolute z-30 w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                      {filteredLeagues.map((l, idx) => (
+                        <button
+                          key={idx}
+                          onMouseDown={() => handleMetadataSelect("league", l)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-amber-50 flex items-center justify-between border-b border-slate-50 last:border-0 font-bold text-slate-700 text-sm transition-colors"
+                        >
+                          {l}
+                          <ChevronRight size={14} className="text-slate-300" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Division Input with Suggestions */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
+                  Division{" "}
+                  {setupAttempted && !division && (
+                    <span className="text-red-500">*</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Users
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <input
+                    className={`w-full pl-12 pr-12 py-3 bg-slate-50 border rounded-xl outline-none text-sm font-bold transition-all ${
+                      setupAttempted && !division
+                        ? "border-red-500 bg-red-50 ring-4 ring-red-100"
+                        : "border-slate-200 focus:ring-4 focus:ring-slate-100"
+                    }`}
+                    placeholder="e.g. U17 / Seniors"
+                    value={division}
+                    onChange={(e) => setDivision(e.target.value)}
+                    onFocus={() => setShowDivisionSuggestions(true)}
+                    onBlur={() =>
+                      setTimeout(() => setShowDivisionSuggestions(false), 150)
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsDivisionModalOpen(true)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                    title="Browse Divisions"
+                  >
+                    <List size={16} />
+                  </button>
+                  {showDivisionSuggestions && filteredDivisions.length > 0 && (
+                    <div className="absolute z-30 w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                      {filteredDivisions.map((d, idx) => (
+                        <button
+                          key={idx}
+                          onMouseDown={() =>
+                            handleMetadataSelect("division", d)
+                          }
+                          className="w-full text-left px-4 py-2.5 hover:bg-amber-50 flex items-center justify-between border-b border-slate-50 last:border-0 font-bold text-slate-700 text-sm transition-colors"
+                        >
+                          {d}
+                          <ChevronRight size={14} className="text-slate-300" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Season/Phase Input with Suggestions */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
+                  Season/Phase{" "}
+                  {setupAttempted && !season && (
+                    <span className="text-red-500">*</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Calendar
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={18}
+                  />
+                  <input
+                    className={`w-full pl-12 pr-12 py-3 bg-slate-50 border rounded-xl outline-none text-sm font-bold transition-all ${
+                      setupAttempted && !season
+                        ? "border-red-500 bg-red-50 ring-4 ring-red-100"
+                        : "border-slate-200 focus:ring-4 focus:ring-slate-100"
+                    }`}
+                    placeholder="e.g. 1, 2, 3, 4, etc."
+                    value={season}
+                    onChange={(e) => setSeason(e.target.value)}
+                    onFocus={() => setShowSeasonSuggestions(true)}
+                    onBlur={() =>
+                      setTimeout(() => setShowSeasonSuggestions(false), 150)
+                    }
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsSeasonModalOpen(true)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                    title="Browse Seasons"
+                  >
+                    <List size={16} />
+                  </button>
+                  {showSeasonSuggestions && filteredSeasons.length > 0 && (
+                    <div className="absolute z-30 w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+                      {filteredSeasons.map((s, idx) => (
+                        <button
+                          key={idx}
+                          onMouseDown={() => handleMetadataSelect("season", s)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-amber-50 flex items-center justify-between border-b border-slate-50 last:border-0 font-bold text-slate-700 text-sm transition-colors"
+                        >
+                          Season {s}
+                          <ChevronRight size={14} className="text-slate-300" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
-              Season/Phase {setupAttempted && !season && <span className="text-red-500">*</span>}
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <input
-                className={`w-full pl-12 pr-4 py-3 bg-slate-50 border rounded-xl outline-none text-sm font-bold transition-all ${
-                  setupAttempted && !season
-                    ? "border-red-500 bg-red-50 ring-4 ring-red-100"
-                    : "border-slate-200 focus:ring-4 focus:ring-slate-100"
-                }`}
-               placeholder="e.g. 1, 2, 3, 4, etc."
-                value={season}
-                onChange={(e) => setSeason(e.target.value)}
-              />
-            </div>
+
+          {/* Two Column Team Entry */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TeamEntrySection
+              side="A"
+              color="blue"
+              teamData={teamA}
+              setTeamData={setTeamA}
+              newPlayer={newPlayerA}
+              setNewPlayer={setNewPlayerA}
+              onAdd={() => handleAddPlayer("A")}
+              onRemove={(id) => handleRemovePlayer("A", id)}
+              availableTeams={filteredTeams}
+              onSelectTeam={(team) => handleSelectTeam("A", team)}
+              setupAttempted={setupAttempted}
+              userRole={user.role} // Pass user role to TeamEntrySection
+            />
+            <TeamEntrySection
+              side="B"
+              color="red"
+              teamData={teamB}
+              setTeamData={setTeamB}
+              newPlayer={newPlayerB}
+              setNewPlayer={setNewPlayerB}
+              onAdd={() => handleAddPlayer("B")}
+              onRemove={(id) => handleRemovePlayer("B", id)}
+              availableTeams={filteredTeams}
+              onSelectTeam={(team) => handleSelectTeam("B", team)}
+              userRole={user.role} // Pass user role to TeamEntrySection
+              setupAttempted={setupAttempted}
+            />
           </div>
-      
-        </div>
-      </div>
 
-      {/* Two Column Team Entry */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TeamEntrySection
-          side="A"
-          color="blue"
-          teamData={teamA}
-          setTeamData={setTeamA}
-          newPlayer={newPlayerA}
-          setNewPlayer={setNewPlayerA}
-          onAdd={() => handleAddPlayer("A")}
-          onRemove={(id) => handleRemovePlayer("A", id)}
-          availableTeams={availableTeams}
-          onSelectTeam={(team) => handleSelectTeam("A", team)}
-          setupAttempted={setupAttempted}
-          userRole={user.role} // Pass user role to TeamEntrySection
-        />
-        <TeamEntrySection
-          side="B"
-          color="red"
-          teamData={teamB}
-          setTeamData={setTeamB}
-          newPlayer={newPlayerB}
-          setNewPlayer={setNewPlayerB}
-          onAdd={() => handleAddPlayer("B")}
-          onRemove={(id) => handleRemovePlayer("B", id)}
-          availableTeams={availableTeams}
-          onSelectTeam={(team) => handleSelectTeam("B", team)}
-          userRole={user.role} // Pass user role to TeamEntrySection
-          setupAttempted={setupAttempted}
-        />
-      </div>
-
-      {/* Start Button */}
-      <div className="flex justify-center pt-4">
-        <button
-          onClick={initializeGame}
-          className="w-full max-w-md bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all transform active:scale-[0.98] flex items-center justify-center gap-3 text-lg"
-        >
-          <PlayCircle size={24} />
-          Initialize Scoresheet
-        </button>
-      </div>
-      </>
+          {/* Start Button */}
+          <div className="flex justify-center pt-4">
+            <button
+              onClick={initializeGame}
+              className="w-full max-w-md bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all transform active:scale-[0.98] flex items-center justify-center gap-3 text-lg"
+            >
+              <PlayCircle size={24} />
+              Initialize Scoresheet
+            </button>
+          </div>
+        </>
       )}
 
       {/* Detail Modal */}
-      <OfficialGameDetailsModal 
+      <OfficialGameDetailsModal
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         data={selectedGameDetails}
+      />
+
+      {/* Confirmation Modal for Delete Game */}
+      <ConfirmationModal
+        isOpen={isDeleteGameConfirmOpen}
+        onClose={() => {
+          setIsDeleteGameConfirmOpen(false);
+          setGameToDelete(null);
+        }}
+        onConfirm={() => {
+          handleDeleteGame(gameToDelete); // ✅ correct ID
+          setIsDeleteGameConfirmOpen(false);
+          setGameToDelete(null);
+        }}
+        title="Delete Official Game?"
+        message="Are you sure you want to delete this official game record? This action cannot be undone."
+        confirmText="Delete Game"
+        confirmButtonClass="bg-red-600 hover:bg-red-700"
+      />
+
+      {/* Metadata Selection Modals */}
+      <MetadataSelectionModal
+        isOpen={isLeagueModalOpen}
+        onClose={() => setIsLeagueModalOpen(false)}
+        title="Select League"
+        data={uniqueLeagues}
+        onSelect={(value) => handleMetadataSelect("league", value)}
+      />
+      <MetadataSelectionModal
+        isOpen={isDivisionModalOpen}
+        onClose={() => setIsDivisionModalOpen(false)}
+        title="Select Division"
+        data={uniqueDivisions}
+        onSelect={(value) => handleMetadataSelect("division", value)}
+      />
+      <MetadataSelectionModal
+        isOpen={isSeasonModalOpen}
+        onClose={() => setIsSeasonModalOpen(false)}
+        title="Select Season/Phase"
+        data={uniqueSeasons}
+        onSelect={(value) => handleMetadataSelect("season", value)}
       />
     </div>
   );
@@ -452,11 +731,13 @@ function TeamEntrySection({
 
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const suggestions = (availableTeams || []).filter(
-    (t) =>
-      t.name.toLowerCase().includes(teamData.name.toLowerCase()) &&
-      t.name.toLowerCase() !== teamData.name.toLowerCase(),
-  );
+  const suggestions = teamData.name
+    ? (availableTeams || []).filter(
+        (t) =>
+          t.name.toLowerCase().includes(teamData.name.toLowerCase()) &&
+          t.name.toLowerCase() !== teamData.name.toLowerCase(),
+      )
+    : [];
 
   return (
     <div
@@ -467,18 +748,23 @@ function TeamEntrySection({
           <Users size={24} className={iconColor} />
           Team {side} Configuration
         </h3>
-        <span className="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-full text-slate-500"> {/* Removed availableTeams prop */}
+        <span className="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-full text-slate-500">
+          {" "}
+          {/* Removed availableTeams prop */}
           {teamData.roster.length} PLAYERS
         </span>
       </div>
 
       <div className="space-y-1.5">
         <label className="text-[10px] font-black uppercase text-slate-500 ml-1">
-          Team Name {setupAttempted && !teamData.name && <span className="text-red-500">*</span>}
+          Team Name{" "}
+          {setupAttempted && !teamData.name && (
+            <span className="text-red-500">*</span>
+          )}
         </label>
         <div className="relative">
           <input
-            className={`w-full px-5 py-3 bg-slate-50 border rounded-xl outline-none font-bold pr-10 transition-all ${
+            className={`w-full px-5 py-3 bg-slate-50 border rounded-xl outline-none font-bold pr-12 transition-all ${
               setupAttempted && !teamData.name
                 ? "border-red-500 bg-red-50 ring-4 ring-red-100"
                 : "border-slate-200 focus:ring-4 focus:ring-slate-100"
@@ -486,61 +772,51 @@ function TeamEntrySection({
             placeholder={`Enter Team ${side} Name`}
             value={teamData.name}
             onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             onChange={(e) => {
               const val = e.target.value;
-              setTeamData({
-                ...teamData,
-                name: val,
-                id: null, // Clear team ID if name is changed manually
-              });
-              // Auto-load if name matches exactly
-              const match = availableTeams.find(t => t.name.toLowerCase() === val.toLowerCase());
+              setTeamData({ ...teamData, name: val, id: null });
+              const match = availableTeams.find(
+                (t) => t.name.toLowerCase() === val.toLowerCase(),
+              );
               if (match) onSelectTeam(match);
             }}
           />
-          <Search
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-300"
-            size={18}
-          />
-
-          {showSuggestions && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-1">
-              {suggestions.length > 0 &&
-                suggestions.map((team, idx) => (
-                  <button
-                    key={idx}
-                    onMouseDown={() => {
-                      onSelectTeam(team);
-                      setShowSuggestions(false);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-800">
-                        {team.name}
-                        {team.official_id && (
-                          <span className="ml-2 text-[8px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase">
-                            Official
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-black uppercase">
-                        {team.league} • {team.division} • Season {team.season}
-                      </p>
-                    </div>
-                    <ChevronRight size={14} className="text-slate-300" />
-                  </button>
-                ))}
-              <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setIsTeamModalOpen(true);
-                }}
-                className="w-full text-left px-4 py-3 bg-slate-50 hover:bg-slate-100 flex items-center justify-center gap-2 text-blue-600 font-bold border-t border-slate-100"
-              >
-                <List size={16} /> Browse All Teams
-              </button>
+          <button
+            type="button"
+            onClick={() => setIsTeamModalOpen(true)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+            title="Browse Teams"
+          >
+            <List size={16} />
+          </button>
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute z-20 w-full top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+              {suggestions.map((team, idx) => (
+                <button
+                  key={idx}
+                  onMouseDown={() => {
+                    onSelectTeam(team);
+                    setShowSuggestions(false);
+                  }}
+                  className="w-full text-left px-4 py-3 hover:bg-amber-50 flex items-center justify-between border-b border-slate-50 last:border-0 transition-colors"
+                >
+                  <div>
+                    <p className="font-bold text-slate-800">
+                      {team.name}
+                      {team.official_id && (
+                        <span className="ml-2 text-[8px] font-black bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full uppercase">
+                          Official
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-black uppercase">
+                      {team.league} • {team.division} • Season {team.season}
+                    </p>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-300" />
+                </button>
+              ))}
             </div>
           )}
         </div>
