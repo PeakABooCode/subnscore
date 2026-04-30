@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Maximize, Minimize } from "lucide-react";
 import { formatTime } from "../../utils/helpers";
 
 export default function CommitteeScoreboardView() {
@@ -15,9 +15,11 @@ export default function CommitteeScoreboardView() {
     timeouts: {
       A: 0,
       B: 0,
-      max: 2
-    }
+      max: 2,
+    },
   });
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     // Create a broadcast channel to listen for updates from the controller
@@ -27,11 +29,26 @@ export default function CommitteeScoreboardView() {
       setData(event.data);
     };
 
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handleFsChange);
+
     // Clean up on unmount
-    return () => channel.close();
+    return () => {
+      channel.close();
+      document.removeEventListener("fullscreenchange", handleFsChange);
+    };
   }, []);
 
-  const periodName = data.quarter > 4 ? `OT ${data.quarter - 4}` : `PERIOD ${data.quarter}`;
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  const periodName =
+    data.quarter > 4 ? `OT ${data.quarter - 4}` : `PERIOD ${data.quarter}`;
 
   return (
     <div className="fixed inset-0 bg-zinc-950 text-white flex flex-col font-sans overflow-y-auto p-4 md:p-8">
@@ -61,11 +78,13 @@ export default function CommitteeScoreboardView() {
                 {Array.from({ length: data.timeouts.max }).map((_, i) => (
                   <div
                     key={i}
-                    className={`w-8 h-2 md:w-12 md:h-3 rounded-sm transition-all duration-300 ${i < (data.timeouts.max - data.timeouts.A) ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "bg-zinc-900"}`}
+                    className={`w-8 h-2 md:w-12 md:h-3 rounded-sm transition-all duration-300 ${i < data.timeouts.max - data.timeouts.A ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "bg-zinc-900"}`}
                   />
                 ))}
               </div>
-              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Timeouts</span>
+              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                Timeouts
+              </span>
             </div>
           </div>
         </div>
@@ -85,12 +104,14 @@ export default function CommitteeScoreboardView() {
 
             {/* Shot Clock - LARGE and FLASHING */}
             <div className="flex flex-col items-center -mt-2 lg:mt-0">
-               <div className={`text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] font-mono font-black tabular-nums leading-none transition-colors duration-300 ${data.shotClock <= 5 ? 'text-red-600 animate-pulse' : data.shotClock <= 10 ? 'text-red-500' : 'text-amber-500'}`}>
-                 {data.shotClock}
-               </div>
-               <div className="text-zinc-800 text-xs lg:text-2xl font-black uppercase tracking-[0.3em] lg:tracking-[0.5em] -mt-2 lg:-mt-4">
-                 Shot Clock
-               </div>
+              <div
+                className={`text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] font-mono font-black tabular-nums leading-none transition-colors duration-300 ${data.shotClock <= 5 ? "text-red-600 animate-pulse" : data.shotClock <= 10 ? "text-red-500" : "text-amber-500"}`}
+              >
+                {data.shotClock}
+              </div>
+              <div className="text-zinc-800 text-xs lg:text-2xl font-black uppercase tracking-[0.3em] lg:tracking-[0.5em] -mt-2 lg:-mt-4">
+                Shot Clock
+              </div>
             </div>
           </div>
 
@@ -146,11 +167,13 @@ export default function CommitteeScoreboardView() {
                 {Array.from({ length: data.timeouts.max }).map((_, i) => (
                   <div
                     key={i}
-                    className={`w-8 h-2 md:w-12 md:h-3 rounded-sm transition-all duration-300 ${i < (data.timeouts.max - data.timeouts.B) ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "bg-zinc-900"}`}
+                    className={`w-8 h-2 md:w-12 md:h-3 rounded-sm transition-all duration-300 ${i < data.timeouts.max - data.timeouts.B ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)]" : "bg-zinc-900"}`}
                   />
                 ))}
               </div>
-              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Timeouts</span>
+              <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">
+                Timeouts
+              </span>
             </div>
           </div>
         </div>
@@ -168,6 +191,13 @@ export default function CommitteeScoreboardView() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleFullscreen}
+            className="p-2 hover:bg-zinc-900 rounded-lg transition-all text-zinc-600 hover:text-amber-500 mr-2"
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+          >
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+          </button>
           <div className="bg-zinc-900 p-2 rounded-lg">
             <span className="text-amber-500 font-black tracking-tighter">
               SubNScore

@@ -99,7 +99,8 @@ export default function CommitteeDashboardView({
       division
         ? uniqueDivisions.filter(
             (d) =>
-              d.toLowerCase().includes(division.toLowerCase()) && d !== division,
+              d.toLowerCase().includes(division.toLowerCase()) &&
+              d !== division,
           )
         : [],
     [uniqueDivisions, division],

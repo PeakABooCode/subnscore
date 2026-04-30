@@ -129,10 +129,19 @@ export default function App() {
     try {
       const savedMeta = localStorage.getItem("subnscore_teamMeta");
       return savedMeta
-        ? { ...JSON.parse(savedMeta), division: JSON.parse(savedMeta).division || "" } // Ensure division is present
+        ? {
+            ...JSON.parse(savedMeta),
+            division: JSON.parse(savedMeta).division || "",
+          } // Ensure division is present
         : { teamName: "", opponent: "", league: "", season: "", division: "" };
     } catch {
-      return { teamName: "", opponent: "", league: "", season: "", division: "" };
+      return {
+        teamName: "",
+        opponent: "",
+        league: "",
+        season: "",
+        division: "",
+      };
     }
   });
 
@@ -146,14 +155,18 @@ export default function App() {
     }
   });
 
-  const [committeePossessionArrow, setCommitteePossessionArrow] = useState(() => {
-    try {
-      const saved = localStorage.getItem("subnscore_committeePossessionArrow");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [committeePossessionArrow, setCommitteePossessionArrow] = useState(
+    () => {
+      try {
+        const saved = localStorage.getItem(
+          "subnscore_committeePossessionArrow",
+        );
+        return saved ? JSON.parse(saved) : null;
+      } catch {
+        return null;
+      }
+    },
+  );
   const [committeeTimeouts, setCommitteeTimeouts] = useState(() => {
     try {
       const saved = localStorage.getItem("subnscore_committeeTimeouts");
@@ -359,19 +372,31 @@ export default function App() {
   }, [lineupsByQuarter]);
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_committeeGameData", JSON.stringify(committeeGameData));
+    localStorage.setItem(
+      "subnscore_committeeGameData",
+      JSON.stringify(committeeGameData),
+    );
   }, [committeeGameData]);
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_committeePossessionArrow", JSON.stringify(committeePossessionArrow));
+    localStorage.setItem(
+      "subnscore_committeePossessionArrow",
+      JSON.stringify(committeePossessionArrow),
+    );
   }, [committeePossessionArrow]);
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_committeeTimeouts", JSON.stringify(committeeTimeouts));
+    localStorage.setItem(
+      "subnscore_committeeTimeouts",
+      JSON.stringify(committeeTimeouts),
+    );
   }, [committeeTimeouts]);
   useEffect(() => {
     if (!isLoaded.current) return;
-    localStorage.setItem("subnscore_committeeLogs", JSON.stringify(committeeLogs));
+    localStorage.setItem(
+      "subnscore_committeeLogs",
+      JSON.stringify(committeeLogs),
+    );
   }, [committeeLogs]);
   useEffect(() => {
     if (!isLoaded.current) return;
@@ -480,29 +505,39 @@ export default function App() {
     const savedCommitteeTimeouts = localStorage.getItem(
       "subnscore_committeeTimeouts",
     );
-    const savedCommitteeLogs = localStorage.getItem(
-      "subnscore_committeeLogs",
+    const savedCommitteeLogs = localStorage.getItem("subnscore_committeeLogs");
+
+    const savedCoachingQuarter = localStorage.getItem(
+      "subnscore_coachingQuarter",
+    );
+    const savedCommitteeQuarter = localStorage.getItem(
+      "subnscore_committeeQuarter",
     );
 
-
-    const savedCoachingQuarter = localStorage.getItem("subnscore_coachingQuarter");
-    const savedCommitteeQuarter = localStorage.getItem("subnscore_committeeQuarter");
-
     if (savedCoachingClock) setCoachingClock(JSON.parse(savedCoachingClock));
-    if (savedCoachingQuarter) setCoachingQuarter(JSON.parse(savedCoachingQuarter));
-    if (savedCommitteeQuarter) setCommitteeQuarter(JSON.parse(savedCommitteeQuarter));
-    const savedCommitteeKeybindings = localStorage.getItem("subnscore_committeeKeybindings");
+    if (savedCoachingQuarter)
+      setCoachingQuarter(JSON.parse(savedCoachingQuarter));
+    if (savedCommitteeQuarter)
+      setCommitteeQuarter(JSON.parse(savedCommitteeQuarter));
+    const savedCommitteeKeybindings = localStorage.getItem(
+      "subnscore_committeeKeybindings",
+    );
     if (savedCoachingRunning)
       setIsCoachingRunning(JSON.parse(savedCoachingRunning));
     if (savedCommitteeClock) setCommitteeClock(JSON.parse(savedCommitteeClock));
     if (savedCommitteeRunning)
       setIsCommitteeRunning(JSON.parse(savedCommitteeRunning));
-    if (savedCommitteePossessionArrow) setCommitteePossessionArrow(JSON.parse(savedCommitteePossessionArrow));
-    if (savedCommitteeTimeouts) setCommitteeTimeouts(JSON.parse(savedCommitteeTimeouts));
+    if (savedCommitteePossessionArrow)
+      setCommitteePossessionArrow(JSON.parse(savedCommitteePossessionArrow));
+    if (savedCommitteeTimeouts)
+      setCommitteeTimeouts(JSON.parse(savedCommitteeTimeouts));
     if (savedCommitteeLogs) setCommitteeLogs(JSON.parse(savedCommitteeLogs));
-    if (savedCoachingQuarter) setCoachingQuarter(JSON.parse(savedCoachingQuarter));
-    if (savedCommitteeQuarter) setCommitteeQuarter(JSON.parse(savedCommitteeQuarter));
-    if (savedCommitteeKeybindings) setCommitteeKeybindings(JSON.parse(savedCommitteeKeybindings));
+    if (savedCoachingQuarter)
+      setCoachingQuarter(JSON.parse(savedCoachingQuarter));
+    if (savedCommitteeQuarter)
+      setCommitteeQuarter(JSON.parse(savedCommitteeQuarter));
+    if (savedCommitteeKeybindings)
+      setCommitteeKeybindings(JSON.parse(savedCommitteeKeybindings));
 
     // 2. Delay marking as loaded slightly to allow states to settle
     setTimeout(() => {
@@ -525,7 +560,13 @@ export default function App() {
       showNotification("PASARELLE BREAK: Mandatory Substitutions Required");
       if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
     }
-  }, [coachingClock, isCoachingRunning, coachingQuarter, gameMode, pasarelleTriggered]);
+  }, [
+    coachingClock,
+    isCoachingRunning,
+    coachingQuarter,
+    gameMode,
+    pasarelleTriggered,
+  ]);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -667,9 +708,9 @@ export default function App() {
       localStorage.removeItem("subnscore_committeePossessionArrow");
       localStorage.removeItem("subnscore_committeeTimeouts");
       localStorage.removeItem("subnscore_committeeLogs");
-    localStorage.removeItem("subnscore_committeePossessionArrow");
-    localStorage.removeItem("subnscore_committeeTimeouts");
-    localStorage.removeItem("subnscore_committeeLogs");
+      localStorage.removeItem("subnscore_committeePossessionArrow");
+      localStorage.removeItem("subnscore_committeeTimeouts");
+      localStorage.removeItem("subnscore_committeeLogs");
       localStorage.removeItem("subnscore_committeeGameData");
       localStorage.removeItem("subnscore_historyData");
       localStorage.removeItem("subnscore_pasarelleTriggered");
@@ -1128,7 +1169,8 @@ export default function App() {
       });
 
       // Capture snapshot if this is the first lineup of the quarter
-      setLineupsByQuarter((prev) => ({ // This is for coaching lineups
+      setLineupsByQuarter((prev) => ({
+        // This is for coaching lineups
         ...prev,
         [coachingQuarter]: onBenchSelected,
       }));
@@ -1217,14 +1259,25 @@ export default function App() {
     }
     setActionHistory((prev) => [
       ...prev,
-      { playerId, type, amount, quarter: coachingQuarter, clock: coachingClock },
+      {
+        playerId,
+        type,
+        amount,
+        quarter: coachingQuarter,
+        clock: coachingClock,
+      },
     ]);
   };
 
   const addOpponentScore = (amount) => {
     setActionHistory((prev) => [
       ...prev,
-      { type: "opp_score", amount, quarter: coachingQuarter, clock: coachingClock },
+      {
+        type: "opp_score",
+        amount,
+        quarter: coachingQuarter,
+        clock: coachingClock,
+      },
     ]);
   };
 
@@ -1253,7 +1306,8 @@ export default function App() {
       if (lastAction.type === "fouls") {
         setTeamFouls((prev) => ({
           ...prev,
-          [lastAction.quarter]: Math.max( // lastAction.quarter is correct here
+          [lastAction.quarter]: Math.max(
+            // lastAction.quarter is correct here
             0,
             (prev[lastAction.quarter] || 0) - 1,
           ),
@@ -1322,7 +1376,9 @@ export default function App() {
 
   const advanceQuarter = (skipConfirm = false) => {
     const pName =
-      coachingQuarter > 4 ? `Overtime ${coachingQuarter - 4}` : `Quarter ${coachingQuarter}`;
+      coachingQuarter > 4
+        ? `Overtime ${coachingQuarter - 4}`
+        : `Quarter ${coachingQuarter}`;
     // When called via onClick, 'skipConfirm' is the Event object.
     // Strictly check for 'true' to ensure the modal is triggered.
     if (skipConfirm !== true) return setIsAdvanceQuarterConfirmOpen(true);
@@ -1636,7 +1692,7 @@ export default function App() {
           const out =
             s.clockOut !== null
               ? s.clockOut
-                : s.quarter === coachingQuarter
+              : s.quarter === coachingQuarter
                 ? coachingClock
                 : 0;
           totalSeconds += s.clockIn - out;
@@ -1764,7 +1820,11 @@ export default function App() {
         </nav>
       )}
 
-      <main className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full">
+      <main
+        className={`flex-1 p-4 md:p-8 ${
+          view === "COMMITTEE_LIVE" ? "md:pt-4 pt-4" : ""
+        } max-w-7xl mx-auto w-full`}
+      >
         {!user && view === "AUTH" && (
           <AuthView
             authMode={authMode}
@@ -1820,7 +1880,11 @@ export default function App() {
               setCommitteeTimeouts({ A: [], B: [] });
               setCommitteeGameData(data);
               // Store the player ID maps returned from the backend
-              setCommitteeGameData(prev => ({ ...prev, teamAPlayerMap: data.teamAPlayerMap, teamBPlayerMap: data.teamBPlayerMap }));
+              setCommitteeGameData((prev) => ({
+                ...prev,
+                teamAPlayerMap: data.teamAPlayerMap,
+                teamBPlayerMap: data.teamBPlayerMap,
+              }));
               setView("COMMITTEE_LIVE");
             }}
           />
@@ -1949,7 +2013,8 @@ export default function App() {
             gameMode={
               historyData ? historyData.meta.game_mode || "FULL" : gameMode
             }
-            lineupsByQuarter={ // This is for coaching lineups
+            lineupsByQuarter={
+              // This is for coaching lineups
               historyData ? historyData.lineupsByQuarter : lineupsByQuarter
             }
           />
