@@ -1,7 +1,7 @@
 OfficialGameDetailsModal;
 
 import React from "react";
-import { X, History, Trophy, Clock } from "lucide-react";
+import { X, History, Trophy, Clock, ShieldAlert, Star } from "lucide-react";
 import { formatTime } from "../../utils/helpers";
 
 export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
@@ -9,25 +9,83 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
 
   const { game, logs } = data;
 
+  // --- Dynamic Awards Calculation ---
+  const playerStats = {};
+  logs.forEach((log) => {
+    if (!log.player_id) return;
+    if (!playerStats[log.player_id]) {
+      playerStats[log.player_id] = {
+        id: log.player_id,
+        name: log.player_name,
+        points: 0,
+        rebounds: 0,
+        assists: 0,
+        steals: 0,
+        fouls: 0,
+      };
+    }
+    const p = playerStats[log.player_id];
+    if (log.action_type === "SCORE" || log.action_type === "SCORE_ADJUST")
+      p.points += log.amount || 0;
+    else if (log.action_type === "REBOUND") p.rebounds += log.amount || 1;
+    else if (log.action_type === "ASSIST") p.assists += log.amount || 1;
+    else if (log.action_type === "STEAL") p.steals += log.amount || 1;
+    else if (log.action_type === "FOUL") p.fouls += 1;
+  });
+
+  const players = Object.values(playerStats);
+
+  let mvp = null,
+    dpoy = null,
+    playmaker = null;
+  if (players.length > 0) {
+    // MVP = Highest Efficiency: (PTS + REB + AST + STL - FLS)
+    mvp = [...players].sort(
+      (a, b) =>
+        b.points +
+        b.rebounds +
+        b.assists +
+        b.steals -
+        b.fouls -
+        (a.points + a.rebounds + a.assists + a.steals - a.fouls),
+    )[0];
+
+    // DPOY = Heavily weighted to Steals and Rebounds
+    const dpoyCandidates = [...players].filter(
+      (p) => p.steals + p.rebounds > 0,
+    );
+    if (dpoyCandidates.length > 0) {
+      dpoy = dpoyCandidates.sort(
+        (a, b) => b.steals * 2 + b.rebounds - (a.steals * 2 + a.rebounds),
+      )[0];
+    }
+
+    // Playmaker = Most Assists
+    const playmakerCandidates = [...players].filter((p) => p.assists > 0);
+    if (playmakerCandidates.length > 0) {
+      playmaker = playmakerCandidates.sort((a, b) => b.assists - a.assists)[0];
+    }
+  }
+
   return (
-    <div className="fixed inset-0 bg-slate-900/80 flex items-center justify-center p-4 z-[10000] backdrop-blur-sm">
+    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-[10000] backdrop-blur-sm">
       <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="bg-slate-900 p-6 flex justify-between items-center border-b-4 border-amber-500">
+        <div className="bg-white p-6 flex justify-between items-center border-b border-slate-100">
           <div className="flex items-center gap-3">
             <Trophy className="text-amber-500" size={28} />
             <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-tighter">
+              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">
                 Official Game Report
               </h2>
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
                 {game.league} • Season {game.season} • {game.division}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-slate-800 rounded-xl"
+            className="text-slate-400 hover:text-slate-900 transition-colors p-2 hover:bg-slate-100 rounded-xl"
           >
             <X size={24} />
           </button>
@@ -64,15 +122,78 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
             </div>
           </div>
 
+          {/* Game Awards Section */}
+          {players.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* MVP */}
+              {mvp && (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-4">
+                  <div className="bg-amber-100 p-3 rounded-xl text-amber-600">
+                    <Trophy size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">
+                      Player of the Game
+                    </p>
+                    <p className="font-black text-slate-800 leading-tight">
+                      {mvp.name}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
+                      {mvp.points} PTS • {mvp.rebounds} REB • {mvp.assists} AST
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* DPOY */}
+              {dpoy && (
+                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200 p-4 rounded-2xl flex items-center gap-4">
+                  <div className="bg-blue-100 p-3 rounded-xl text-blue-600">
+                    <ShieldAlert size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-blue-600 tracking-widest">
+                      Best Defensive
+                    </p>
+                    <p className="font-black text-slate-800 leading-tight">
+                      {dpoy.name}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
+                      {dpoy.steals} STL • {dpoy.rebounds} REB
+                    </p>
+                  </div>
+                </div>
+              )}
+              {/* Playmaker */}
+              {playmaker && (
+                <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 p-4 rounded-2xl flex items-center gap-4">
+                  <div className="bg-purple-100 p-3 rounded-xl text-purple-600">
+                    <Star size={24} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-purple-600 tracking-widest">
+                      Playmaker
+                    </p>
+                    <p className="font-black text-slate-800 leading-tight">
+                      {playmaker.name}
+                    </p>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">
+                      {playmaker.assists} AST
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Full Play-by-Play Log */}
-          <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex flex-col gap-3 shadow-inner">
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+          <div className="bg-white rounded-2xl p-4 border border-slate-100 flex flex-col gap-3 shadow-sm">
+            <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
               <History size={14} className="text-amber-500" /> Official
               Play-by-Play
             </h3>
             <div className="space-y-1.5 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
               {logs.length === 0 ? (
-                <p className="text-[10px] text-slate-600 italic text-center py-10 font-bold uppercase tracking-widest">
+                <p className="text-[10px] text-slate-400 italic text-center py-10 font-bold uppercase tracking-widest">
                   No events recorded
                 </p>
               ) : (
@@ -95,27 +216,27 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
                       key={log.id || idx}
                       className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
                         isScore
-                          ? "bg-emerald-500/20 border-emerald-500/40"
+                          ? "bg-emerald-50 border-emerald-100"
                           : isFoul
-                            ? "bg-red-500/20 border-red-500/40"
+                            ? "bg-red-50 border-red-100"
                             : isTimeout
-                              ? "bg-amber-500/20 border-amber-500/40"
+                              ? "bg-amber-50 border-amber-100"
                               : isSub
-                                ? "bg-indigo-500/20 border-indigo-500/40"
+                                ? "bg-indigo-50 border-indigo-100"
                                 : isStat
-                                  ? "bg-cyan-500/20 border-cyan-500/40"
-                                  : "bg-slate-800 border-slate-700"
+                                  ? "bg-cyan-50 border-cyan-100"
+                                  : "bg-slate-50 border-slate-100"
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-black bg-slate-800 text-slate-300 w-5 h-5 rounded-full flex items-center justify-center border border-slate-700">
+                        <span className="text-[8px] font-black bg-white text-slate-600 w-5 h-5 rounded-full flex items-center justify-center border border-slate-200 shadow-sm">
                           {log.quarter > 4
                             ? `OT${log.quarter - 4}`
                             : `Q${log.quarter}`}
                         </span>
                         <div className="flex flex-col">
                           <span
-                            className={`text-[9px] font-black uppercase leading-tight ${log.team_side === "A" ? "text-blue-300" : log.team_side === "B" ? "text-red-300" : "text-slate-300"}`}
+                            className={`text-[9px] font-black uppercase leading-tight ${log.team_side === "A" ? "text-blue-600" : log.team_side === "B" ? "text-red-600" : "text-slate-500"}`}
                           >
                             {log.action_type === "TIMEOUT" ||
                             log.action_type === "SCORE_ADJUST"
@@ -131,15 +252,15 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
                           <span
                             className={`text-[8px] font-bold uppercase tracking-tighter ${
                               isScore
-                                ? "text-emerald-300"
+                                ? "text-emerald-600"
                                 : isFoul
-                                  ? "text-red-300"
+                                  ? "text-red-600"
                                   : isTimeout
-                                    ? "text-amber-300"
+                                    ? "text-amber-600"
                                     : isSub
-                                      ? "text-indigo-300"
+                                      ? "text-indigo-600"
                                       : isStat
-                                        ? "text-cyan-300"
+                                        ? "text-cyan-600"
                                         : "text-slate-500"
                             }`}
                           >
@@ -174,7 +295,7 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
                         </div>
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className="text-[9px] font-black text-amber-500/80 tabular-nums">
+                        <span className="text-[9px] font-black text-slate-400 tabular-nums">
                           {formatTime(log.time_remaining)}
                         </span>
                       </div>

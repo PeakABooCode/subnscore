@@ -427,6 +427,7 @@ export default function CommitteeLiveView({
         (team === "A" ? teamAPlayerMap : teamBPlayerMap)[playerId] || playerId,
       playerName: player.name,
       jersey: player.jersey,
+      amount: 1,
       quarter,
       clock,
     });
