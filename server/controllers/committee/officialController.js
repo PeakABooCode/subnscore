@@ -5,8 +5,15 @@ import pool from "../../config/db.js";
  * Initializes an official game scoresheet with two teams.
  */
 export const initializeOfficialGame = async (req, res) => {
-  const { teamAName, teamBName, teamARoster, teamBRoster, league, season, division } =
-    req.body;
+  const {
+    teamAName,
+    teamBName,
+    teamARoster,
+    teamBRoster,
+    league,
+    season,
+    division,
+  } = req.body;
   const officialId = req.user.id;
 
   try {
@@ -26,7 +33,7 @@ export const initializeOfficialGame = async (req, res) => {
         // Update existing team meta if it has changed
         await pool.query(
           "UPDATE official_teams SET league = $1, season = $2, division = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4",
-          [league, season, division, teamId]
+          [league, season, division, teamId],
         );
       } else {
         const newTeam = await pool.query(
@@ -54,8 +61,8 @@ export const initializeOfficialGame = async (req, res) => {
 
     // Prepare initial lineup snapshots (Starters for Team A and Team B)
     const initialLineups = {
-      teamA: teamARoster.slice(0, 5).map(p => p.id),
-      teamB: teamBRoster.slice(0, 5).map(p => p.id)
+      teamA: teamARoster.slice(0, 5).map((p) => p.id),
+      teamB: teamBRoster.slice(0, 5).map((p) => p.id),
     };
 
     // 2. Create the Game Record
@@ -64,7 +71,17 @@ export const initializeOfficialGame = async (req, res) => {
     const gameRes = await pool.query(
       `INSERT INTO official_games (team_a_id, team_b_id, team_b_name, game_mode, league, season, division, official_id, lineups_by_quarter, status) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'LIVE') RETURNING id`,
-      [teamAData.teamId, teamBData.teamId, teamBName, "FULL", league, season, division, officialId, JSON.stringify(initialLineups)],
+      [
+        teamAData.teamId,
+        teamBData.teamId,
+        teamBName,
+        "FULL",
+        league,
+        season,
+        division,
+        officialId,
+        JSON.stringify(initialLineups),
+      ],
     );
 
     const gameId = gameRes.rows[0].id;
@@ -89,7 +106,18 @@ export const initializeOfficialGame = async (req, res) => {
 };
 
 export const saveOfficialGame = async (req, res) => {
-  const { gameId, finalScoreA, finalScoreB, finalClock, finalQuarter, logs } = req.body;
+  const {
+    gameId,
+    finalScoreA,
+    finalScoreB,
+    finalClock,
+    finalQuarter,
+    logs,
+    latePlayersA,
+    latePlayersB,
+    teamAId,
+    teamBId,
+  } = req.body;
   const officialId = req.user.id;
 
   try {
@@ -100,30 +128,50 @@ export const saveOfficialGame = async (req, res) => {
       `UPDATE official_games 
        SET final_score_a = $1, final_score_b = $2, final_clock = $3, final_quarter = $4, status = 'COMPLETED'
        WHERE id = $5 AND official_id = $6`,
-      [finalScoreA, finalScoreB, finalClock, finalQuarter, gameId, officialId]
+      [finalScoreA, finalScoreB, finalClock, finalQuarter, gameId, officialId],
     );
 
     // 2. Clear previous logs to prevent duplicates on re-save
-    await pool.query("DELETE FROM official_action_logs WHERE game_id = $1", [gameId]);
+    await pool.query("DELETE FROM official_action_logs WHERE game_id = $1", [
+      gameId,
+    ]);
 
-    // 3. Insert logs into official_action_logs
+    // 3. Insert Late Players
+    const latePlayerMap = {};
+    const insertLatePlayers = async (players, tId) => {
+      if (!players || !players.length) return;
+      for (const p of players) {
+        const pRes = await pool.query(
+          "INSERT INTO official_players (team_id, name, jersey_number) VALUES ($1, $2, $3) ON CONFLICT (team_id, jersey_number) DO UPDATE SET name = EXCLUDED.name RETURNING id",
+          [tId, p.name, p.jersey],
+        );
+        latePlayerMap[p.id] = pRes.rows[0].id;
+      }
+    };
+
+    await insertLatePlayers(latePlayersA, teamAId);
+    await insertLatePlayers(latePlayersB, teamBId);
+
+    // 4. Insert logs into official_action_logs
     if (logs && Array.isArray(logs)) {
       for (const log of logs) {
         // Map team_side from log properties
-        const teamSide = log.team || log.to || log.winner || 'A';
+        const teamSide = log.team || log.to || log.winner || "A";
+        const finalPlayerId =
+          latePlayerMap[log.playerId] || log.dbPlayerId || null;
 
         await pool.query(
           `INSERT INTO official_action_logs (game_id, player_id, action_type, team_side, amount, quarter, time_remaining)
            VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             gameId,
-            log.dbPlayerId || null, // Use the mapped DB player ID
+            finalPlayerId, // Use the mapped DB player ID or the new late player ID
             log.type,
             teamSide,
             log.amount || 0,
             log.quarter,
-            log.clock || 0
-          ]
+            log.clock || 0,
+          ],
         );
       }
     }
@@ -150,7 +198,7 @@ export const getOfficialGames = async (req, res) => {
        JOIN official_teams tb ON g.team_b_id = tb.id
        WHERE g.official_id = $1
        ORDER BY g.game_date DESC`,
-      [officialId]
+      [officialId],
     );
     res.json(result.rows);
   } catch (err) {
@@ -172,7 +220,7 @@ export const getOfficialGameDetails = async (req, res) => {
        JOIN official_teams ta ON g.team_a_id = ta.id
        JOIN official_teams tb ON g.team_b_id = tb.id
        WHERE g.id = $1 AND g.official_id = $2`,
-      [id, officialId]
+      [id, officialId],
     );
 
     if (gameMeta.rows.length === 0) {
@@ -185,12 +233,12 @@ export const getOfficialGameDetails = async (req, res) => {
        LEFT JOIN official_players p ON al.player_id = p.id
        WHERE al.game_id = $1
        ORDER BY al.quarter ASC, al.time_remaining DESC, al.created_at ASC`,
-      [id]
+      [id],
     );
 
     res.json({
       game: gameMeta.rows[0],
-      logs: logs.rows
+      logs: logs.rows,
     });
   } catch (err) {
     console.error("Fetch Official Game Details Error:", err);
@@ -208,14 +256,16 @@ export const deleteOfficialGame = async (req, res) => {
     // Verify ownership
     const check = await pool.query(
       "SELECT id FROM official_games WHERE id = $1 AND official_id = $2",
-      [id, officialId]
+      [id, officialId],
     );
 
     if (check.rows.length === 0) {
       return res.status(404).json({ error: "Game not found or unauthorized." });
     }
 
-    await pool.query("DELETE FROM official_action_logs WHERE game_id = $1", [id]);
+    await pool.query("DELETE FROM official_action_logs WHERE game_id = $1", [
+      id,
+    ]);
     await pool.query("DELETE FROM official_games WHERE id = $1", [id]);
 
     await pool.query("COMMIT");

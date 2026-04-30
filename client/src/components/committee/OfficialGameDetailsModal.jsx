@@ -1,7 +1,15 @@
 OfficialGameDetailsModal;
 
 import React from "react";
-import { X, History, Trophy, Clock, ShieldAlert, Star } from "lucide-react";
+import {
+  X,
+  History,
+  Trophy,
+  Clock,
+  ShieldAlert,
+  Star,
+  Printer,
+} from "lucide-react";
 import { formatTime } from "../../utils/helpers";
 
 export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
@@ -68,10 +76,10 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-[10000] backdrop-blur-sm">
-      <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-[10000] backdrop-blur-sm print:bg-transparent print:p-0 print:block">
+      <div className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] print:max-h-none print:shadow-none print:w-full print:block">
         {/* Header */}
-        <div className="bg-white p-6 flex justify-between items-center border-b border-slate-100">
+        <div className="bg-white p-6 flex justify-between items-center border-b border-slate-100 print:border-b-2 print:border-black">
           <div className="flex items-center gap-3">
             <Trophy className="text-amber-500" size={28} />
             <div>
@@ -79,19 +87,19 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
                 Official Game Report
               </h2>
               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">
-                {game.league} • Season {game.season} • {game.division}
+                {game.league} • Season {game.season} • {game.division} DIVISION
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-900 transition-colors p-2 hover:bg-slate-100 rounded-xl"
+            className="text-slate-400 hover:text-slate-900 transition-colors p-2 hover:bg-slate-100 rounded-xl print:hidden"
           >
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto custom-scrollbar space-y-8">
+        <div className="p-6 overflow-y-auto custom-scrollbar space-y-8 print:overflow-visible print:p-0 print:py-4">
           {/* Scoreboard Summary */}
           <div className="grid grid-cols-3 items-center gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
             <div className="text-center">
@@ -191,7 +199,7 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
               <History size={14} className="text-amber-500" /> Official
               Play-by-Play
             </h3>
-            <div className="space-y-1.5 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-1.5 max-h-96 overflow-y-auto pr-2 custom-scrollbar print:max-h-none print:overflow-visible">
               {logs.length === 0 ? (
                 <p className="text-[10px] text-slate-400 italic text-center py-10 font-bold uppercase tracking-widest">
                   No events recorded
@@ -307,10 +315,16 @@ export default function OfficialGameDetailsModal({ isOpen, onClose, data }) {
           </div>
         </div>
 
-        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+        <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 print:hidden">
+          <button
+            onClick={() => window.print()}
+            className="bg-white border-2 border-slate-200 text-slate-700 px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-2"
+          >
+            <Printer size={18} /> Print Report
+          </button>
           <button
             onClick={onClose}
-            className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all active:scale-95"
+            className="bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all active:scale-95 flex items-center gap-2"
           >
             Close Report
           </button>

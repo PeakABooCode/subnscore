@@ -11,6 +11,7 @@ import {
   History,
   ChevronRight,
   List,
+  Edit2,
 } from "lucide-react";
 import TeamSelectionModal from "../common/TeamSelectionModal";
 import OfficialGameDetailsModal from "./OfficialGameDetailsModal";
@@ -306,6 +307,8 @@ export default function CommitteeDashboardView({
       // Call the transition prop with the data needed for the Live View
       onGameStart({
         gameId: res.data.gameId,
+        teamAId: res.data.teamAId,
+        teamBId: res.data.teamBId,
         teamAName: teamA.name,
         teamBName: teamB.name,
         teamARoster: teamA.roster,
@@ -635,6 +638,7 @@ export default function CommitteeDashboardView({
               onSelectTeam={(team) => handleSelectTeam("A", team)}
               setupAttempted={setupAttempted}
               userRole={user.role} // Pass user role to TeamEntrySection
+              showNotification={showNotification}
             />
             <TeamEntrySection
               side="B"
@@ -649,6 +653,7 @@ export default function CommitteeDashboardView({
               onSelectTeam={(team) => handleSelectTeam("B", team)}
               userRole={user.role} // Pass user role to TeamEntrySection
               setupAttempted={setupAttempted}
+              showNotification={showNotification}
             />
           </div>
 
@@ -729,6 +734,7 @@ function TeamEntrySection({
   onSelectTeam,
   setupAttempted,
   userRole,
+  showNotification,
 }) {
   const accentBorder = color === "blue" ? "border-blue-500" : "border-red-500";
   const iconColor = color === "blue" ? "text-blue-500" : "text-red-500";
@@ -746,6 +752,10 @@ function TeamEntrySection({
           t.name.toLowerCase() !== teamData.name.toLowerCase(),
       )
     : [];
+
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editJersey, setEditJersey] = useState("");
 
   return (
     <div
@@ -881,29 +891,99 @@ function TeamEntrySection({
             </p>
           </div>
         ) : (
-          teamData.roster.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100 group transition-all hover:border-slate-200"
-            >
-              <div className="flex items-center gap-4">
-                <span
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm border-2 ${jerseyColor}`}
+          teamData.roster.map((p) => {
+            if (editingId === p.id) {
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between bg-slate-50 p-2 rounded-2xl border border-blue-200 group transition-all"
                 >
-                  {p.jersey}
-                </span>
-                <span className="font-bold text-slate-700 uppercase tracking-tight">
-                  {p.name}
-                </span>
-              </div>
-              <button
-                onClick={() => onRemove(p.id)}
-                className="text-slate-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-all"
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      value={editJersey}
+                      onChange={(e) => setEditJersey(e.target.value)}
+                      className="w-12 p-1.5 border rounded-xl text-sm text-center font-bold outline-none focus:border-blue-400"
+                      placeholder="#"
+                    />
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="flex-1 p-1.5 border rounded-xl text-sm font-bold outline-none focus:border-blue-400"
+                      placeholder="Name"
+                    />
+                  </div>
+                  <div className="flex gap-1 ml-2">
+                    <button
+                      onClick={() => {
+                        if (
+                          teamData.roster.some(
+                            (rp) =>
+                              rp.id !== p.id &&
+                              rp.jersey.toString() === editJersey.toString(),
+                          )
+                        ) {
+                          showNotification("Jersey already in use");
+                          return;
+                        }
+                        if (!editName || !editJersey) return;
+                        const updated = teamData.roster.map((rp) =>
+                          rp.id === p.id
+                            ? { ...rp, name: editName, jersey: editJersey }
+                            : rp,
+                        );
+                        setTeamData({ ...teamData, roster: updated });
+                        setEditingId(null);
+                      }}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-colors"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="bg-slate-300 hover:bg-slate-400 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div
+                key={p.id}
+                className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100 group transition-all hover:border-slate-200"
               >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          ))
+                <div className="flex items-center gap-4">
+                  <span
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm border-2 ${jerseyColor}`}
+                  >
+                    {p.jersey}
+                  </span>
+                  <span className="font-bold text-slate-700 uppercase tracking-tight">
+                    {p.name}
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      setEditingId(p.id);
+                      setEditName(p.name);
+                      setEditJersey(p.jersey);
+                    }}
+                    className="text-slate-300 hover:text-blue-500 p-2 rounded-lg hover:bg-blue-50 transition-all"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => onRemove(p.id)}
+                    className="text-slate-300 hover:text-red-500 p-2 rounded-lg hover:bg-red-50 transition-all"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

@@ -22,6 +22,7 @@ import {
   RotateCcw,
   Settings,
   BellRing,
+  UserPlus,
 } from "lucide-react";
 import { formatTime } from "../../utils/helpers";
 import KeyboardSettingsModal from "./KeyboardSettingsModal";
@@ -63,6 +64,10 @@ export default function CommitteeLiveView({
   const [teamBBench, setTeamBBench] = useState([]);
   const [selectedPlayersA, setSelectedPlayersA] = useState([]); // Players selected for swap on Team A
   const [selectedPlayersB, setSelectedPlayersB] = useState([]); // Players selected for swap on Team B
+
+  // --- Late Arrivals State ---
+  const [latePlayersA, setLatePlayersA] = useState([]);
+  const [latePlayersB, setLatePlayersB] = useState([]);
 
   const periodName =
     quarter > 4 ? `Overtime ${quarter - 4}` : `Period ${quarter}`;
@@ -114,7 +119,12 @@ export default function CommitteeLiveView({
 
   const playerStats = useMemo(() => {
     const stats = {};
-    [...initialData.teamARoster, ...initialData.teamBRoster].forEach((p) => {
+    [
+      ...initialData.teamARoster,
+      ...latePlayersA,
+      ...initialData.teamBRoster,
+      ...latePlayersB,
+    ].forEach((p) => {
       stats[p.id] = { points: 0, fouls: 0, rebounds: 0, assists: 0, steals: 0 };
     });
     (logs || []).forEach((log) => {
@@ -127,7 +137,7 @@ export default function CommitteeLiveView({
       }
     });
     return stats;
-  }, [logs, initialData]);
+  }, [logs, initialData, latePlayersA, latePlayersB]);
 
   // Initialize lineups
   useEffect(() => {
@@ -295,8 +305,37 @@ export default function CommitteeLiveView({
 
   // Helper to find player details from either roster
   const findPlayer = (id) => {
-    return [...initialData.teamARoster, ...initialData.teamBRoster].find(
-      (p) => p.id === id,
+    return [
+      ...initialData.teamARoster,
+      ...latePlayersA,
+      ...initialData.teamBRoster,
+      ...latePlayersB,
+    ].find((p) => p.id === id);
+  };
+
+  const handleAddLatePlayer = (teamSide, player) => {
+    const id = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const newP = { ...player, id, dbId: null };
+
+    if (teamSide === "A") {
+      setLatePlayersA((prev) => [...prev, newP]);
+      setTeamABench((prev) => [...prev, newP]);
+    } else {
+      setLatePlayersB((prev) => [...prev, newP]);
+      setTeamBBench((prev) => [...prev, newP]);
+    }
+
+    addLog({
+      type: "SUB_IN",
+      team: teamSide,
+      playerId: id,
+      playerName: newP.name,
+      jersey: newP.jersey,
+      quarter,
+      clock,
+    });
+    showNotification(
+      `Added late player ${newP.name} to Team ${teamSide} bench.`,
     );
   };
 
@@ -485,6 +524,10 @@ export default function CommitteeLiveView({
         finalClock: clock,
         finalQuarter: quarter,
         logs: [...logs].reverse(), // Send chronological history
+        latePlayersA,
+        latePlayersB,
+        teamAId: initialData.teamAId,
+        teamBId: initialData.teamBId,
       };
 
       await axios.post("/api/committee/games/save", payload);
@@ -734,7 +777,7 @@ export default function CommitteeLiveView({
           <TeamPlayersSection
             teamSide="A"
             name={initialData.teamAName}
-            allPlayers={initialData.teamARoster}
+            allPlayers={[...initialData.teamARoster, ...latePlayersA]}
             onCourtPlayers={teamAOnCourt}
             benchPlayers={teamABench}
             stats={playerStats}
@@ -743,6 +786,7 @@ export default function CommitteeLiveView({
             onScore={(pId, amt) => handleScore("A", pId, amt)}
             onFoul={(pId) => handleFoul("A", pId)}
             onStat={(pId, type) => handleStat("A", pId, type)}
+            onAddLatePlayer={handleAddLatePlayer}
             color="blue"
             showNotification={showNotification}
           />
@@ -1067,7 +1111,7 @@ export default function CommitteeLiveView({
           <TeamPlayersSection
             teamSide="B"
             name={initialData.teamBName}
-            allPlayers={initialData.teamBRoster}
+            allPlayers={[...initialData.teamBRoster, ...latePlayersB]}
             onCourtPlayers={teamBOnCourt}
             benchPlayers={teamBBench}
             stats={playerStats}
@@ -1076,6 +1120,7 @@ export default function CommitteeLiveView({
             onScore={(pId, amt) => handleScore("B", pId, amt)}
             onFoul={(pId) => handleFoul("B", pId)}
             onStat={(pId, type) => handleStat("B", pId, type)}
+            onAddLatePlayer={handleAddLatePlayer}
             color="red"
             showNotification={showNotification}
           />
@@ -1127,10 +1172,15 @@ function TeamPlayersSection({
   onStat,
   color,
   showNotification,
+  onAddLatePlayer,
 }) {
   const themeColor = color === "blue" ? "blue" : "red";
   const accentBg = color === "blue" ? "blue-50" : "red-50";
   const accentText = color === "blue" ? "blue-600" : "red-600";
+
+  const [isAddingLate, setIsAddingLate] = useState(false);
+  const [lateName, setLateName] = useState("");
+  const [lateJersey, setLateJersey] = useState("");
 
   return (
     <div
