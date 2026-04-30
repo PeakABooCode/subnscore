@@ -160,6 +160,7 @@ export default function CommitteeLiveView({
         .play()
         .catch((e) => console.error("Error playing buzzer sound:", e));
     }
+    setIsRunning(false); // Stop the clock when the horn sounds
   };
 
   // Trigger buzzer when game clock hits zero
