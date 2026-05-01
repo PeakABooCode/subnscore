@@ -785,7 +785,13 @@ export default function StatsView({
                                 ? "Foul"
                                 : action.type === "turnovers"
                                   ? "Turnover"
-                                  : action.type}
+                                  : action.type === "SUB_IN"
+                                    ? "Sub In"
+                                    : action.type === "SUB_OUT"
+                                      ? "Sub Out"
+                                      : action.type === "TIMEOUT"
+                                        ? "Timeout"
+                                        : action.type}
                         </span>
 
                         {/* Selective Deletion: Hide for substitutions and historical archives */}
