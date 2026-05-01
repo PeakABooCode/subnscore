@@ -759,9 +759,11 @@ export default function StatsView({
                           <span className="text-sm font-bold text-slate-800">
                             {action.type === "opp_score"
                               ? `${teamMeta.opponent || "Opponent"} Score`
-                              : p
-                                ? `${p.name} (#${p.jersey})`
-                                : "Unknown Player"}
+                              : action.type === "TIMEOUT"
+                                ? "Team Timeout"
+                                : p
+                                  ? `${p.name} (#${p.jersey})`
+                                  : "Unknown Player"}
                           </span>
                         </div>
                       </div>

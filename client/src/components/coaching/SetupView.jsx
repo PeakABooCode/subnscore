@@ -11,6 +11,7 @@ import {
   List,
   ShieldCheck,
   Zap,
+  Users,
 } from "lucide-react";
 import EditPlayerModal from "../common/EditPlayerModal";
 import { capitalizeWords } from "../../utils/helpers";
@@ -56,6 +57,7 @@ export default function SetupView({
       teamName: team.name,
       league: team.league || "",
       season: team.season || "",
+      division: team.division || "",
     });
     setIsTeamModalOpen(false);
   };
@@ -107,6 +109,7 @@ export default function SetupView({
                       teamName: val,
                       league: matchedTeam.league || teamMeta.league,
                       season: matchedTeam.season || teamMeta.season,
+                      division: matchedTeam.division || teamMeta.division,
                     });
                   } else {
                     setTeamMeta({
@@ -200,6 +203,31 @@ export default function SetupView({
                   season: val,
                 });
               }}
+            />
+          </div>
+
+          {/* DIVISION INPUT */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold uppercase text-slate-500 flex items-center gap-1">
+              <Users size={12} className="inline mr-1" /> Division
+              {setupAttempted && !teamMeta.division.trim() && (
+                <span className="text-red-500 animate-pulse">*</span>
+              )}
+            </label>
+            <input
+              className={`border p-2.5 rounded-lg outline-none transition-all duration-200 ${
+                setupAttempted && !teamMeta.division.trim()
+                  ? "border-red-500 bg-red-50 ring-1 ring-red-200"
+                  : "focus:border-blue-500 focus:ring-2 focus:ring-blue-100 border-slate-200"
+              }`}
+              placeholder="e.g. U17 / Seniors"
+              value={teamMeta.division}
+              onChange={(e) =>
+                setTeamMeta({
+                  ...teamMeta,
+                  division: capitalizeWords(e.target.value),
+                })
+              }
             />
           </div>
         </div>
