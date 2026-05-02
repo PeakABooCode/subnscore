@@ -17,6 +17,9 @@ import {
   TrendingUp,
   Trophy,
   Timer,
+  Zap,
+  AlertTriangle,
+  TrendingDown,
 } from "lucide-react";
 import ConfirmationModal from "../common/ConfirmationModal";
 
@@ -44,7 +47,7 @@ export default function StatsView({
   const [isSaveConfirmOpen, setIsSaveConfirmOpen] = useState(false);
 
   // Define the logical order of tabs for swipe navigation
-  const tabs = ["boxscore", "quarters", "timeline", "lineups"];
+  const tabs = ["boxscore", "quarters", "timeline", "lineups", "insights"];
 
   // 📱 SWIPE GESTURES: This block calculates where the user touches their phone screen and where they let go.
   // If the difference is big enough, it changes the tab (e.g., swiping from Box Score to Quarters).
@@ -241,6 +244,144 @@ export default function StatsView({
     });
   }, [lineupStats, lineupSortBy]);
 
+  // 💡 INSIGHTS: All computed signals for the Insights tab
+  const insightsData = useMemo(() => {
+    // Opponent score
+    const oppScore = actionHistory
+      .filter((a) => a.type === "opp_score")
+      .reduce((acc, a) => acc + (a.amount || 0), 0);
+
+    // Recent run: last 15 scoring events — show our pts vs their pts
+    const lastScoring = actionHistory
+      .filter((a) => a.type === "score" || a.type === "opp_score")
+      .slice(-15);
+    const recentUs = lastScoring
+      .filter((a) => a.type === "score")
+      .reduce((acc, a) => acc + a.amount, 0);
+    const recentThem = lastScoring
+      .filter((a) => a.type === "opp_score")
+      .reduce((acc, a) => acc + a.amount, 0);
+    const runDiff = recentUs - recentThem;
+    const momentumTag =
+      runDiff >= 4 ? "HOT" : runDiff <= -4 ? "COLD" : null;
+
+    // Per-player +/-
+    const pm = {};
+    roster.forEach((p) => (pm[p.id] = 0));
+    actionHistory.forEach((a) => {
+      if (a.type === "score" || a.type === "opp_score") {
+        stints
+          .filter(
+            (s) =>
+              s.quarter === a.quarter &&
+              s.clockIn >= a.clock &&
+              (s.clockOut === null || s.clockOut <= a.clock),
+          )
+          .forEach((s) => {
+            if (pm[s.playerId] !== undefined)
+              pm[s.playerId] += a.type === "score" ? a.amount : -a.amount;
+          });
+      }
+    });
+
+    // Recent turnovers (last 20 actions)
+    const recentToMap = {};
+    actionHistory
+      .slice(-20)
+      .filter((a) => a.type === "turnovers" && a.playerId)
+      .forEach((a) => {
+        recentToMap[a.playerId] = (recentToMap[a.playerId] || 0) + 1;
+      });
+    const recentToEntry = Object.entries(recentToMap).sort(
+      (a, b) => b[1] - a[1],
+    )[0];
+    const recentToPlayer = recentToEntry
+      ? {
+          player: roster.find((p) => p.id === recentToEntry[0]),
+          count: recentToEntry[1],
+        }
+      : null;
+
+    // Foul trouble (4+ fouls)
+    const foulTroubled = roster
+      .filter((p) => (playerStats[p.id]?.fouls || 0) >= 4)
+      .map((p) => ({ player: p, fouls: playerStats[p.id]?.fouls }));
+
+    // Best lineup (min 60s on court, highest +/-)
+    const bestLineup = [...lineupStats]
+      .filter((l) => l.totalTime >= 60)
+      .sort(
+        (a, b) =>
+          b.pointsScored -
+          (b.pointsAgainst || 0) -
+          (a.pointsScored - (a.pointsAgainst || 0)),
+      )[0] || null;
+
+    // Enriched roster for performer cards
+    const enriched = roster
+      .map((p) => ({
+        player: p,
+        score: playerStats[p.id]?.score || 0,
+        pm: pm[p.id] || 0,
+        tos: playerStats[p.id]?.turnovers || 0,
+        fouls: playerStats[p.id]?.fouls || 0,
+        eff:
+          (playerStats[p.id]?.score || 0) +
+          (pm[p.id] || 0) -
+          (playerStats[p.id]?.turnovers || 0),
+      }))
+      .filter((x) => x.score > 0 || Math.abs(x.pm) > 0 || x.tos > 0);
+
+    const topPerformer =
+      enriched.length > 0
+        ? [...enriched].sort((a, b) => b.eff - a.eff)[0]
+        : null;
+
+    const needsAttention =
+      enriched.length > 1
+        ? [...enriched].sort(
+            (a, b) => a.pm - a.tos * 2 - (b.pm - b.tos * 2),
+          )[0]
+        : null;
+
+    // Auto-generated bullet insights
+    const bullets = [];
+    if (bestLineup) {
+      const linPM = bestLineup.pointsScored - (bestLineup.pointsAgainst || 0);
+      if (linPM > 0)
+        bullets.push(
+          `Best unit is +${linPM} in ${formatTime(bestLineup.totalTime)} — keep them on`,
+        );
+    }
+    if (recentToPlayer && recentToPlayer.count >= 2)
+      bullets.push(
+        `#${recentToPlayer.player?.jersey} ${recentToPlayer.player?.name} — ${recentToPlayer.count} TOs recently`,
+      );
+    foulTroubled.forEach(({ player, fouls }) =>
+      bullets.push(`Foul trouble: #${player.jersey} ${player.name} (${fouls} fouls)`),
+    );
+    if (runDiff <= -6)
+      bullets.push(`Opponent on a ${recentThem}-${recentUs} run — call timeout?`);
+    if (teamTotalTurnovers >= 10)
+      bullets.push(`${teamTotalTurnovers} total turnovers — ball security critical`);
+    if (bullets.length === 0)
+      bullets.push("Game is under control — keep executing your game plan");
+
+    return {
+      oppScore,
+      recentUs,
+      recentThem,
+      runDiff,
+      momentumTag,
+      foulTroubled,
+      bestLineup,
+      topPerformer,
+      needsAttention,
+      bullets,
+      pm,
+    };
+  }, [actionHistory, roster, playerStats, stints, lineupStats, teamTotalTurnovers]);
+
   // Simple visual trend component
   const TrendSparkline = ({ trend = [0] }) => {
     if (trend.length < 2)
@@ -373,6 +514,17 @@ export default function StatsView({
         >
           <Group size={16} className="md:w-[18px] md:h-[18px]" />{" "}
           <span className="truncate">Lineups</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("insights")}
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
+            activeTab === "insights"
+              ? "bg-white text-amber-500 shadow-sm"
+              : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
+          }`}
+        >
+          <Zap size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Insights</span>
         </button>
       </div>
 
@@ -1022,6 +1174,260 @@ export default function StatsView({
                 })
               )}
             </div>
+          </div>
+        )}
+
+        {/* 7. TAB 5: INSIGHTS */}
+        {activeTab === "insights" && (
+          <div className="space-y-4">
+
+            {/* ── BLOCK A: Score + Game State ── */}
+            <div className="bg-slate-900 text-white rounded-2xl p-5 border-b-4 border-amber-500 shadow-xl">
+              <div className="flex items-start justify-between gap-4">
+                {/* Scores */}
+                <div className="flex items-center gap-4">
+                  <div className="text-center">
+                    <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest truncate max-w-[80px]">
+                      {teamMeta?.teamName || "Team"}
+                    </div>
+                    <div className="text-5xl font-black tabular-nums leading-none mt-0.5">
+                      {teamTotalScore}
+                    </div>
+                  </div>
+                  <div className="text-slate-500 font-black text-2xl">—</div>
+                  <div className="text-center">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate max-w-[80px]">
+                      {teamMeta?.opponent || "Opp"}
+                    </div>
+                    <div className="text-5xl font-black tabular-nums leading-none mt-0.5 text-slate-300">
+                      {insightsData.oppScore}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Period + Clock */}
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-black text-slate-400 uppercase">
+                    {quarter > 4 ? `OT ${quarter - 4}` : `Q${quarter}`}
+                    {" · "}
+                    {formatTime(clock)}
+                  </div>
+                  {insightsData.momentumTag && (
+                    <div
+                      className={`text-xs font-black uppercase tracking-widest mt-1 px-2 py-0.5 rounded inline-block ${
+                        insightsData.momentumTag === "HOT"
+                          ? "bg-emerald-500/20 text-emerald-400"
+                          : "bg-red-500/20 text-red-400"
+                      }`}
+                    >
+                      {insightsData.momentumTag === "HOT" ? "🔥" : "❄️"}{" "}
+                      {insightsData.momentumTag}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Run + TOs row */}
+              <div className="flex items-center gap-4 mt-4 pt-4 border-t border-slate-800">
+                <div className="flex items-center gap-2">
+                  {insightsData.momentumTag === "HOT" ? (
+                    <TrendingUp size={14} className="text-emerald-400" />
+                  ) : insightsData.momentumTag === "COLD" ? (
+                    <TrendingDown size={14} className="text-red-400" />
+                  ) : (
+                    <Activity size={14} className="text-slate-500" />
+                  )}
+                  <span className="text-xs font-black text-slate-300">
+                    Run:{" "}
+                    <span
+                      className={
+                        insightsData.runDiff > 0
+                          ? "text-emerald-400"
+                          : insightsData.runDiff < 0
+                            ? "text-red-400"
+                            : "text-white"
+                      }
+                    >
+                      {insightsData.recentUs}–{insightsData.recentThem}
+                    </span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle
+                    size={14}
+                    className={
+                      teamTotalTurnovers >= 10
+                        ? "text-amber-400"
+                        : "text-slate-500"
+                    }
+                  />
+                  <span className="text-xs font-black text-slate-300">
+                    TOs:{" "}
+                    <span
+                      className={
+                        teamTotalTurnovers >= 10
+                          ? "text-amber-400"
+                          : "text-white"
+                      }
+                    >
+                      {teamTotalTurnovers}
+                      {teamTotalTurnovers >= 10 && " ⚠️ High"}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── BLOCK B: Auto Insights ── */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center gap-2">
+                <Zap size={16} className="text-amber-500" />
+                <h3 className="font-black text-slate-800 uppercase tracking-wider text-sm">
+                  Auto Insights
+                </h3>
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {insightsData.bullets.map((bullet, i) => (
+                  <li key={i} className="px-5 py-3.5 flex items-start gap-3">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 shrink-0" />
+                    <span className="text-sm font-bold text-slate-700">
+                      {bullet}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* ── BLOCK C: Top Performers ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Top Impact */}
+              {insightsData.topPerformer && (
+                <div className="bg-white rounded-2xl border-2 border-emerald-100 shadow-sm p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">🔥</span>
+                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">
+                      Top Impact
+                    </span>
+                  </div>
+                  <div className="font-black text-slate-900 text-base">
+                    #{insightsData.topPerformer.player.jersey}{" "}
+                    {insightsData.topPerformer.player.name}
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-sm font-black text-emerald-600">
+                      {insightsData.topPerformer.score} pts
+                    </span>
+                    <span
+                      className={`text-sm font-black ${insightsData.topPerformer.pm >= 0 ? "text-emerald-600" : "text-red-500"}`}
+                    >
+                      {insightsData.topPerformer.pm > 0 ? "+" : ""}
+                      {insightsData.topPerformer.pm} +/-
+                    </span>
+                    <span className="text-sm font-black text-slate-500">
+                      {insightsData.topPerformer.tos} TO
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Needs Attention */}
+              {insightsData.needsAttention && (
+                <div className="bg-white rounded-2xl border-2 border-orange-100 shadow-sm p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">⚠️</span>
+                    <span className="text-[10px] font-black text-orange-600 uppercase tracking-widest">
+                      Needs Attention
+                    </span>
+                  </div>
+                  <div className="font-black text-slate-900 text-base">
+                    #{insightsData.needsAttention.player.jersey}{" "}
+                    {insightsData.needsAttention.player.name}
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-sm font-black text-orange-600">
+                      {insightsData.needsAttention.tos} TO
+                    </span>
+                    <span
+                      className={`text-sm font-black ${insightsData.needsAttention.pm >= 0 ? "text-emerald-600" : "text-red-500"}`}
+                    >
+                      {insightsData.needsAttention.pm > 0 ? "+" : ""}
+                      {insightsData.needsAttention.pm} +/-
+                    </span>
+                    {insightsData.needsAttention.fouls >= 3 && (
+                      <span className="text-sm font-black text-red-500">
+                        {insightsData.needsAttention.fouls} fouls
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── BLOCK D: Best Lineup ── */}
+            {insightsData.bestLineup && (
+              <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-700 shadow-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Trophy size={16} className="text-amber-400" />
+                    <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                      Best Lineup
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-black text-slate-400">
+                    <span
+                      className={
+                        insightsData.bestLineup.pointsScored -
+                          (insightsData.bestLineup.pointsAgainst || 0) >
+                        0
+                          ? "text-emerald-400"
+                          : "text-red-400"
+                      }
+                    >
+                      {insightsData.bestLineup.pointsScored -
+                        (insightsData.bestLineup.pointsAgainst || 0) >
+                      0
+                        ? "+"
+                        : ""}
+                      {insightsData.bestLineup.pointsScored -
+                        (insightsData.bestLineup.pointsAgainst || 0)}{" "}
+                      +/-
+                    </span>
+                    <span className="text-slate-500">|</span>
+                    <span>{formatTime(insightsData.bestLineup.totalTime)} mins</span>
+                  </div>
+                </div>
+
+                {/* Player jersey chips */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {insightsData.bestLineup.players.map((pid) => {
+                    const p = roster.find((r) => r.id === pid);
+                    return p ? (
+                      <div
+                        key={pid}
+                        className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-center"
+                      >
+                        <div className="text-amber-400 font-black text-xs">
+                          #{p.jersey}
+                        </div>
+                        <div className="text-slate-300 text-[9px] font-bold truncate max-w-[56px]">
+                          {p.name.split(" ")[0]}
+                        </div>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 border-t border-slate-800 pt-3">
+                  <TrendingUp size={12} className="text-emerald-400 shrink-0" />
+                  <span>
+                    {insightsData.bestLineup.totalTime >= 180
+                      ? "Proven unit — keep them on longer"
+                      : "Small sample — let them build chemistry"}
+                  </span>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
       </div>
