@@ -157,6 +157,45 @@ export default function LiveView({
     return streaks;
   }, [actionHistory, roster]);
 
+  // 📊 LINEUP PERFORMANCE PANEL: Stats for the current 5-man unit while they've been together.
+  const lineupSummary = useMemo(() => {
+    if (court.length !== 5) return null;
+
+    // Find each court player's active (open) stint
+    const activeStints = court
+      .map((id) => [...stints].reverse().find((s) => s.playerId === id && s.clockOut === null))
+      .filter(Boolean);
+
+    if (activeStints.length === 0) return null;
+
+    // The unit formed when the LAST player entered — clock counts DOWN, so lowest clockIn = most recent entry
+    const unitStartClock = Math.min(...activeStints.map((s) => s.clockIn));
+    const unitQuarter = activeStints.find((s) => s.clockIn === unitStartClock)?.quarter ?? quarter;
+
+    // Seconds this unit has been on court together
+    const timeTogetherSecs = unitQuarter === quarter ? Math.max(0, unitStartClock - clock) : 0;
+
+    // Actions that happened AFTER this unit formed (clock was at or below unitStartClock)
+    const unitActions = actionHistory.filter(
+      (a) => a.quarter === unitQuarter && a.clock <= unitStartClock && a.clock >= clock,
+    );
+
+    const pointsFor = unitActions
+      .filter((a) => a.type === "score" || a.type === "score_adjust")
+      .reduce((acc, a) => acc + (a.amount || 0), 0);
+
+    const pointsAgainst = unitActions
+      .filter((a) => a.type === "opp_score")
+      .reduce((acc, a) => acc + (a.amount || 0), 0);
+
+    return {
+      timeTogetherSecs,
+      pointsFor,
+      pointsAgainst,
+      plusMinus: pointsFor - pointsAgainst,
+    };
+  }, [court, stints, actionHistory, clock, quarter]);
+
   // ⏱️ REST TIMER: This is crucial for coaches to manage player fatigue.
   // It finds the last time a bench player was subbed out, and compares it to the current game clock.
   // If the clock is paused, the timer pauses. It perfectly tracks real game-rest minutes.
@@ -338,6 +377,60 @@ export default function LiveView({
               </span>
             )}
           </div>
+
+          {/* 📊 LINEUP PERFORMANCE PANEL: Shows stats for the current 5-man unit. */}
+          {court.length === 5 && lineupSummary && (
+            <div className="bg-slate-900 rounded-2xl px-4 py-3 border border-slate-700 shadow-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] flex items-center gap-1.5">
+                  <Activity size={10} /> Current Unit
+                </span>
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  As a lineup
+                </span>
+              </div>
+              <div className="grid grid-cols-3 divide-x divide-slate-700">
+                {/* +/- */}
+                <div className="flex flex-col items-center pr-4">
+                  <span
+                    className={`text-2xl font-black tabular-nums leading-none ${
+                      lineupSummary.plusMinus > 0
+                        ? "text-emerald-400"
+                        : lineupSummary.plusMinus < 0
+                          ? "text-red-400"
+                          : "text-white"
+                    }`}
+                  >
+                    {lineupSummary.plusMinus > 0 ? "+" : ""}
+                    {lineupSummary.plusMinus}
+                  </span>
+                  <span className="text-[8px] font-black text-slate-500 uppercase mt-1">
+                    +/-
+                  </span>
+                </div>
+                {/* Time together */}
+                <div className="flex flex-col items-center px-4">
+                  <span className="text-2xl font-black text-amber-400 tabular-nums leading-none">
+                    {formatTime(lineupSummary.timeTogetherSecs)}
+                  </span>
+                  <span className="text-[8px] font-black text-slate-500 uppercase mt-1">
+                    mins on
+                  </span>
+                </div>
+                {/* Run (points for - against) */}
+                <div className="flex flex-col items-center pl-4">
+                  <span className="text-2xl font-black text-white tabular-nums leading-none">
+                    {lineupSummary.pointsFor}
+                    <span className="text-slate-500">-</span>
+                    {lineupSummary.pointsAgainst}
+                  </span>
+                  <span className="text-[8px] font-black text-slate-500 uppercase mt-1">
+                    run
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* If no one is on the court yet (like at the start of the game), show this message. */}
           {court.length === 0 && (
