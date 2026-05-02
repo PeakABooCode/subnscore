@@ -1211,6 +1211,12 @@ export default function App() {
   const handleSwap = (playerId) => {
     if (isCoachingRunning) return showNotification("Pause clock to sub!");
 
+    // Block fouled-out bench players from being selected
+    const isOnCourt = court.includes(playerId);
+    if (!isOnCourt && (playerStats[playerId]?.fouls || 0) >= 5) {
+      return showNotification("Player has fouled out and cannot re-enter.");
+    }
+
     const isAlreadySelected = pendingSwapIds.includes(playerId);
     let nextSelected;
 
@@ -1218,7 +1224,6 @@ export default function App() {
     if (isAlreadySelected) {
       nextSelected = pendingSwapIds.filter((id) => id !== playerId);
     } else {
-      const isOnCourt = court.includes(playerId);
       const currentOnCourt = pendingSwapIds.filter((id) => court.includes(id));
       const currentOnBench = pendingSwapIds.filter((id) => !court.includes(id));
 

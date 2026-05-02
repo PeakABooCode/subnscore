@@ -497,16 +497,19 @@ export default function LiveView({
                   const restTime = calculateRestTime(p.id);
                   const pm = playerPlusMinus[p.id] || 0;
                   const streak = playerStreaks[p.id];
+                  const isFouledOut = stats.fouls >= 5;
                   return (
                     <button
                       key={p.id}
                       onClick={() => handleSwap(p.id)}
-                      disabled={isRunning}
+                      disabled={isRunning || isFouledOut}
                       className={`p-3 rounded-xl border-2 text-left transition-all ${
-                        isSelected
-                          ? "border-blue-500 bg-blue-50 shadow-md"
-                          : "bg-white border-slate-100 hover:border-blue-300"
-                      } ${isRunning ? "opacity-40 grayscale" : "active:scale-95"}`}
+                        isFouledOut
+                          ? "bg-red-50 border-red-200 opacity-50 grayscale cursor-not-allowed"
+                          : isSelected
+                            ? "border-blue-500 bg-blue-50 shadow-md"
+                            : "bg-white border-slate-100 hover:border-blue-300"
+                      } ${isRunning && !isFouledOut ? "opacity-40 grayscale" : ""} ${!isRunning && !isFouledOut ? "active:scale-95" : ""}`}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex flex-col items-start">
