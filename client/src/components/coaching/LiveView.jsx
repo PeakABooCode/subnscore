@@ -196,6 +196,45 @@ export default function LiveView({
     };
   }, [court, stints, actionHistory, clock, quarter]);
 
+  // 🤝 ASSISTED SUB MODE: When exactly one bench player is tapped, score each court player
+  // and surface the best sub-out candidate with a reason.
+  const assistedSuggestion = useMemo(() => {
+    if (pendingSwapIds.length !== 1 || court.length !== 5) return null;
+    const benchId = pendingSwapIds[0];
+    if (court.includes(benchId)) return null; // a court player was tapped first — no suggestion needed
+
+    const scored = court.map((courtId) => {
+      const stats = playerStats[courtId] || { fouls: 0, turnovers: 0 };
+      const timePlayed = playerTimes?.[courtId] || 0;
+      const pm = playerPlusMinus[courtId] || 0;
+
+      const score =
+        (stats.fouls || 0) * 30 +
+        timePlayed / 10 +
+        Math.max(0, -pm) * 5 +
+        (stats.turnovers || 0) * 8;
+
+      let reason;
+      if ((stats.fouls || 0) >= 4) reason = `${stats.fouls} fouls`;
+      else if ((stats.fouls || 0) >= 3) reason = "Foul risk";
+      else if (pm < -2) reason = `${pm} +/-`;
+      else reason = `${formatTime(timePlayed)} on court`;
+
+      return { courtId, score, reason };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0];
+
+    return {
+      benchId,
+      courtId: best.courtId,
+      reason: best.reason,
+      benchPlayer: roster.find((p) => p.id === benchId),
+      courtPlayer: roster.find((p) => p.id === best.courtId),
+    };
+  }, [pendingSwapIds, court, playerStats, playerTimes, playerPlusMinus, roster]);
+
   // ⏱️ REST TIMER: This is crucial for coaches to manage player fatigue.
   // It finds the last time a bench player was subbed out, and compares it to the current game clock.
   // If the clock is paused, the timer pauses. It perfectly tracks real game-rest minutes.
@@ -432,6 +471,37 @@ export default function LiveView({
             </div>
           )}
 
+          {/* 🤝 ASSISTED SUB BANNER */}
+          {assistedSuggestion && (
+            <div className="bg-blue-600 text-white rounded-2xl p-4 shadow-lg border border-blue-500 animate-pulse-once">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[9px] font-black text-blue-200 uppercase tracking-[0.2em]">
+                    Assisted Sub
+                  </span>
+                  <div className="font-black text-base leading-tight mt-0.5 truncate">
+                    #{assistedSuggestion.benchPlayer?.jersey}{" "}
+                    {assistedSuggestion.benchPlayer?.name}{" "}
+                    <span className="text-blue-300">IN</span>
+                  </div>
+                  <div className="text-sm text-blue-100 mt-0.5 truncate">
+                    → Out: #{assistedSuggestion.courtPlayer?.jersey}{" "}
+                    {assistedSuggestion.courtPlayer?.name}
+                  </div>
+                  <div className="text-[10px] font-black text-blue-300 uppercase tracking-wider mt-1">
+                    Why: {assistedSuggestion.reason}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleSwap(assistedSuggestion.courtId)}
+                  className="min-h-[52px] px-5 bg-white text-blue-600 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-blue-50 active:scale-95 transition-all shrink-0"
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* If no one is on the court yet (like at the start of the game), show this message. */}
           {court.length === 0 && (
             <div className="py-12 text-center border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl shadow-inner">
@@ -467,6 +537,7 @@ export default function LiveView({
                 turnovers: 0,
               };
               const isSelected = pendingSwapIds.includes(id);
+              const isSuggestedOut = assistedSuggestion?.courtId === id;
               const timePlayed = playerTimes?.[id] || 0;
               const pm = playerPlusMinus[id] || 0;
               const streak = playerStreaks[id];
@@ -478,7 +549,9 @@ export default function LiveView({
                   className={`p-3 md:p-4 border-2 rounded-2xl transition-all shadow-sm flex flex-col gap-3 cursor-pointer ${
                     isSelected
                       ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 scale-[1.01]"
-                      : "bg-white border-slate-100 hover:border-slate-200"
+                      : isSuggestedOut
+                        ? "border-amber-400 bg-amber-50 ring-2 ring-amber-200"
+                        : "bg-white border-slate-100 hover:border-slate-200"
                   }`}
                 >
                   {/* Info Row */}
@@ -488,6 +561,11 @@ export default function LiveView({
                         <span className="font-black text-slate-800 text-lg md:text-xl truncate block">
                           #{p.jersey} {p.name}
                         </span>
+                        {isSuggestedOut && (
+                          <span className="text-[8px] font-black bg-amber-400 text-slate-900 px-2 py-0.5 rounded uppercase tracking-widest shrink-0">
+                            Sub Out
+                          </span>
+                        )}
                         <div className="flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 shadow-sm">
                           <Clock size={12} className="shrink-0" />
                           <span className="text-[12px] font-bold tabular-nums leading-none">
