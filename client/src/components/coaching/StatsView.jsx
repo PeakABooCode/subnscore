@@ -47,7 +47,7 @@ export default function StatsView({
   const [isSaveConfirmOpen, setIsSaveConfirmOpen] = useState(false);
 
   // Define the logical order of tabs for swipe navigation
-  const tabs = ["boxscore", "quarters", "timeline", "lineups", "insights"];
+  const tabs = ["insights", "lineups", "boxscore", "quarters", "timeline"];
 
   // 📱 SWIPE GESTURES: This block calculates where the user touches their phone screen and where they let go.
   // If the difference is big enough, it changes the tab (e.g., swiping from Box Score to Quarters).
@@ -248,8 +248,12 @@ export default function StatsView({
   // Quarters that have recorded data — drives the quarter selector in the Insights tab
   const availableInsightQuarters = useMemo(() => {
     const qs = new Set();
-    actionHistory.forEach((a) => { if (a.quarter) qs.add(Number(a.quarter)); });
-    stints.forEach((s) => { if (s.quarter) qs.add(Number(s.quarter)); });
+    actionHistory.forEach((a) => {
+      if (a.quarter) qs.add(Number(a.quarter));
+    });
+    stints.forEach((s) => {
+      if (s.quarter) qs.add(Number(s.quarter));
+    });
     return [...qs].sort((a, b) => a - b);
   }, [actionHistory, stints]);
 
@@ -347,14 +351,14 @@ export default function StatsView({
 
     // Best lineup (all-game, highest +/- with min 60s) — only shown for "all" view
     const bestLineup = isAll
-      ? ([...lineupStats]
+      ? [...lineupStats]
           .filter((l) => l.totalTime >= 60)
           .sort(
             (a, b) =>
               b.pointsScored -
               (b.pointsAgainst || 0) -
               (a.pointsScored - (a.pointsAgainst || 0)),
-          )[0] || null)
+          )[0] || null
       : null;
 
     // Quarter top players — most minutes played in this quarter (for Block D)
@@ -368,7 +372,10 @@ export default function StatsView({
           return Object.entries(timeMap)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5)
-            .map(([id, time]) => ({ player: roster.find((p) => p.id === id), time }))
+            .map(([id, time]) => ({
+              player: roster.find((p) => p.id === id),
+              time,
+            }))
             .filter((x) => x.player);
         })()
       : null;
@@ -382,18 +389,18 @@ export default function StatsView({
         const periodTos = toMap[p.id] || 0;
         return {
           player: p,
-          score: isAll ? (playerStats[p.id]?.score || 0) : periodScore,
+          score: isAll ? playerStats[p.id]?.score || 0 : periodScore,
           pm: pm[p.id] || 0,
-          tos: isAll ? (playerStats[p.id]?.turnovers || 0) : periodTos,
+          tos: isAll ? playerStats[p.id]?.turnovers || 0 : periodTos,
           fouls: isAll
-            ? (playerStats[p.id]?.fouls || 0)
-            : (acts
+            ? playerStats[p.id]?.fouls || 0
+            : acts
                 .filter((a) => a.playerId === p.id && a.type === "fouls")
-                .reduce((acc, a) => acc + (a.amount || 0), 0)),
+                .reduce((acc, a) => acc + (a.amount || 0), 0),
           eff:
-            (isAll ? (playerStats[p.id]?.score || 0) : periodScore) +
+            (isAll ? playerStats[p.id]?.score || 0 : periodScore) +
             (pm[p.id] || 0) -
-            (isAll ? (playerStats[p.id]?.turnovers || 0) : periodTos),
+            (isAll ? playerStats[p.id]?.turnovers || 0 : periodTos),
         };
       })
       .filter((x) => x.score > 0 || Math.abs(x.pm) > 0 || x.tos > 0);
@@ -404,9 +411,7 @@ export default function StatsView({
         : null;
     const needsAttention =
       enriched.length > 1
-        ? [...enriched].sort(
-            (a, b) => a.pm - a.tos * 2 - (b.pm - b.tos * 2),
-          )[0]
+        ? [...enriched].sort((a, b) => a.pm - a.tos * 2 - (b.pm - b.tos * 2))[0]
         : null;
 
     // Auto bullets
@@ -430,7 +435,9 @@ export default function StatsView({
       ),
     );
     if (runDiff <= -6)
-      bullets.push(`Opponent on a ${recentThem}–${recentUs} run — call timeout?`);
+      bullets.push(
+        `Opponent on a ${recentThem}–${recentUs} run — call timeout?`,
+      );
     if (toWarning >= toLimit)
       bullets.push(
         `${toWarning} turnovers${!isAll ? " this quarter" : ""} — ball security critical`,
@@ -1268,7 +1275,6 @@ export default function StatsView({
         {/* 7. TAB 5: INSIGHTS */}
         {activeTab === "insights" && (
           <div className="space-y-4">
-
             {/* ── QUARTER SELECTOR ── */}
             <div className="flex gap-1.5 flex-wrap">
               <button
@@ -1304,7 +1310,7 @@ export default function StatsView({
                   <div className="text-center">
                     <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest truncate max-w-[80px]">
                       {insightQuarter === "all"
-                        ? (teamMeta?.teamName || "Team")
+                        ? teamMeta?.teamName || "Team"
                         : `${insightQuarter > 4 ? `OT${insightQuarter - 4}` : `Q${insightQuarter}`} Pts`}
                     </div>
                     <div className="text-5xl font-black tabular-nums leading-none mt-0.5">
@@ -1317,7 +1323,7 @@ export default function StatsView({
                   <div className="text-center">
                     <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest truncate max-w-[80px]">
                       {insightQuarter === "all"
-                        ? (teamMeta?.opponent || "Opp")
+                        ? teamMeta?.opponent || "Opp"
                         : "Opp Pts"}
                     </div>
                     <div className="text-5xl font-black tabular-nums leading-none mt-0.5 text-slate-300">
@@ -1331,7 +1337,9 @@ export default function StatsView({
                   <div className="text-sm font-black text-slate-400 uppercase">
                     {insightQuarter === "all"
                       ? `${quarter > 4 ? `OT ${quarter - 4}` : `Q${quarter}`} · ${formatTime(clock)}`
-                      : (insightQuarter > 4 ? `OT ${insightQuarter - 4}` : `Q${insightQuarter}`)}
+                      : insightQuarter > 4
+                        ? `OT ${insightQuarter - 4}`
+                        : `Q${insightQuarter}`}
                   </div>
                   {insightsData.momentumTag && (
                     <div
@@ -1377,7 +1385,8 @@ export default function StatsView({
                   <AlertTriangle
                     size={14}
                     className={
-                      insightsData.periodTurnovers >= (insightQuarter === "all" ? 10 : 4)
+                      insightsData.periodTurnovers >=
+                      (insightQuarter === "all" ? 10 : 4)
                         ? "text-amber-400"
                         : "text-slate-500"
                     }
@@ -1386,13 +1395,15 @@ export default function StatsView({
                     TOs:{" "}
                     <span
                       className={
-                        insightsData.periodTurnovers >= (insightQuarter === "all" ? 10 : 4)
+                        insightsData.periodTurnovers >=
+                        (insightQuarter === "all" ? 10 : 4)
                           ? "text-amber-400"
                           : "text-white"
                       }
                     >
                       {insightsData.periodTurnovers}
-                      {insightsData.periodTurnovers >= (insightQuarter === "all" ? 10 : 4) && " ⚠️ High"}
+                      {insightsData.periodTurnovers >=
+                        (insightQuarter === "all" ? 10 : 4) && " ⚠️ High"}
                     </span>
                   </span>
                 </div>
@@ -1491,23 +1502,35 @@ export default function StatsView({
                   <div className="flex items-center gap-2">
                     <Trophy size={16} className="text-amber-400" />
                     <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
-                      {insightQuarter === "all" ? "Best Lineup" : `${insightQuarter > 4 ? `OT${insightQuarter - 4}` : `Q${insightQuarter}`} Key Players`}
+                      {insightQuarter === "all"
+                        ? "Best Lineup"
+                        : `${insightQuarter > 4 ? `OT${insightQuarter - 4}` : `Q${insightQuarter}`} Key Players`}
                     </span>
                   </div>
                   {insightsData.bestLineup && (
                     <div className="flex items-center gap-3 text-xs font-black text-slate-400">
                       <span
                         className={
-                          insightsData.bestLineup.pointsScored - (insightsData.bestLineup.pointsAgainst || 0) > 0
+                          insightsData.bestLineup.pointsScored -
+                            (insightsData.bestLineup.pointsAgainst || 0) >
+                          0
                             ? "text-emerald-400"
                             : "text-red-400"
                         }
                       >
-                        {insightsData.bestLineup.pointsScored - (insightsData.bestLineup.pointsAgainst || 0) > 0 ? "+" : ""}
-                        {insightsData.bestLineup.pointsScored - (insightsData.bestLineup.pointsAgainst || 0)} +/-
+                        {insightsData.bestLineup.pointsScored -
+                          (insightsData.bestLineup.pointsAgainst || 0) >
+                        0
+                          ? "+"
+                          : ""}
+                        {insightsData.bestLineup.pointsScored -
+                          (insightsData.bestLineup.pointsAgainst || 0)}{" "}
+                        +/-
                       </span>
                       <span className="text-slate-500">|</span>
-                      <span>{formatTime(insightsData.bestLineup.totalTime)} mins</span>
+                      <span>
+                        {formatTime(insightsData.bestLineup.totalTime)} mins
+                      </span>
                     </div>
                   )}
                 </div>
@@ -1515,8 +1538,16 @@ export default function StatsView({
                 {/* Player chips */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   {(insightsData.bestLineup
-                    ? insightsData.bestLineup.players.map((pid) => ({ id: pid, player: roster.find((r) => r.id === pid), time: null }))
-                    : insightsData.quarterTopPlayers.map((x) => ({ id: x.player.id, player: x.player, time: x.time }))
+                    ? insightsData.bestLineup.players.map((pid) => ({
+                        id: pid,
+                        player: roster.find((r) => r.id === pid),
+                        time: null,
+                      }))
+                    : insightsData.quarterTopPlayers.map((x) => ({
+                        id: x.player.id,
+                        player: x.player,
+                        time: x.time,
+                      }))
                   ).map(({ id, player, time }) =>
                     player ? (
                       <div
