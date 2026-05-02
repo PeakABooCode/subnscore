@@ -46,6 +46,7 @@ export default function CommitteeLiveView({
   timeouts, // Now received as prop
   setTimeouts, // Now received as prop
   onGameSaved, // Now received as prop
+  onSaveGame, // Callback so App.jsx can queue the save when offline
   logs, // Now received as prop
   setLogs, // Now received as prop
   teamAPlayerMap, // New prop
@@ -553,29 +554,33 @@ export default function CommitteeLiveView({
   };
 
   const handleSaveGame = async () => {
-    try {
-      setIsRunning(false);
-      const payload = {
-        gameId: initialData.gameId,
-        finalScoreA: scores.A,
-        finalScoreB: scores.B,
-        finalClock: clock,
-        finalQuarter: quarter,
-        logs: [...logs].reverse(), // Send chronological history
-        latePlayersA,
-        latePlayersB,
-        teamAId: initialData.teamAId,
-        teamBId: initialData.teamBId,
-      };
+    setIsRunning(false);
+    const payload = {
+      gameId: initialData.gameId,
+      finalScoreA: scores.A,
+      finalScoreB: scores.B,
+      finalClock: clock,
+      finalQuarter: quarter,
+      logs: [...logs].reverse(),
+      latePlayersA,
+      latePlayersB,
+      teamAId: initialData.teamAId,
+      teamBId: initialData.teamBId,
+    };
 
-      await axios.post("/api/committee/games/save", payload);
-      showNotification("Official scoresheet saved successfully!");
-      if (onGameSaved) onGameSaved();
-    } catch (err) {
-      console.error("Save Error:", err);
-      showNotification(
-        err.response?.data?.error || "Failed to save official game.",
-      );
+    if (onSaveGame) {
+      // Delegate to App.jsx which handles online/offline routing
+      onSaveGame(payload);
+    } else {
+      // Fallback: direct save (legacy path)
+      try {
+        await axios.post("/api/committee/games/save", payload);
+        showNotification("Official scoresheet saved successfully!");
+        if (onGameSaved) onGameSaved();
+      } catch (err) {
+        console.error("Save Error:", err);
+        showNotification(err.response?.data?.error || "Failed to save official game.");
+      }
     }
   };
 

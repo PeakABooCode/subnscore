@@ -1711,19 +1711,21 @@ export default function App() {
   buildPayloadRef.current = buildSavePayload;
 
   // Flush queued saves to the cloud — called on reconnect or page load
+  // Each item carries its own endpoint so coaching and committee games flush correctly
   const flushSyncQueue = async () => {
     if (isSyncing || syncQueue.length === 0) return;
     setIsSyncing(true);
     showNotification(`Syncing ${syncQueue.length} queued game(s)…`);
     const remaining = [];
     for (const item of syncQueue) {
+      const endpoint = item.endpoint || "/api/coaching/games/save";
       try {
-        await axios.post("/api/coaching/games/save", item.payload);
+        await axios.post(endpoint, item.payload);
         await new Promise((r) => setTimeout(r, 1200)); // stay under rate limit
       } catch (err) {
         if (err.response?.status === 429) {
           remaining.push(item);
-          break; // stop flushing, try again later
+          break;
         }
         remaining.push(item);
       }
@@ -1736,6 +1738,68 @@ export default function App() {
   // Stable ref so the auto-flush useEffect can call flushSyncQueue without stale closure
   const flushSyncQueueRef = useRef(flushSyncQueue);
   flushSyncQueueRef.current = flushSyncQueue;
+
+  // Committee save handler — mirrors handleSaveGame but for the official scoresheet endpoint
+  const handleCommitteeSave = async (payload) => {
+    if (!isOnline) {
+      setSyncQueue((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          endpoint: "/api/committee/games/save",
+          payload,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      showNotification("No connection — scoresheet queued. Will sync when online.");
+      // Still call onGameSaved so the UI resets cleanly
+      setCommitteeGameData(null);
+      setCommitteeQuarter(1);
+      setCommitteeClock(10 * 60);
+      setIsCommitteeRunning(false);
+      setCommitteePossessionArrow(null);
+      setCommitteeLogs([]);
+      setCommitteeTimeouts({ A: [], B: [] });
+      setView("COMMITTEE_DASHBOARD");
+      return;
+    }
+    try {
+      await axios.post("/api/committee/games/save", payload);
+      showNotification("Official scoresheet saved successfully!");
+      setCommitteeGameData(null);
+      setCommitteeQuarter(1);
+      setCommitteeClock(10 * 60);
+      setIsCommitteeRunning(false);
+      setCommitteePossessionArrow(null);
+      setCommitteeLogs([]);
+      setCommitteeTimeouts({ A: [], B: [] });
+      setView("COMMITTEE_DASHBOARD");
+    } catch (err) {
+      console.error("Committee Save Error:", err);
+      if (err.response?.status === 429) {
+        showNotification("Too many save attempts. Try again in a moment.");
+      } else {
+        setSyncQueue((prev) => [
+          ...prev,
+          {
+            id: Date.now(),
+            endpoint: "/api/committee/games/save",
+            payload,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        showNotification("Save failed — scoresheet queued for retry.");
+        setCommitteeGameData(null);
+        setCommitteeQuarter(1);
+        setCommitteeClock(10 * 60);
+        setIsCommitteeRunning(false);
+        setCommitteePossessionArrow(null);
+        setCommitteeLogs([]);
+        setCommitteeTimeouts({ A: [], B: [] });
+        setView("COMMITTEE_DASHBOARD");
+      }
+    }
+  };
 
   const handleSaveGame = async () => {
     if (user?.email === "demo@subnscore.com")
@@ -2147,6 +2211,7 @@ export default function App() {
             teamAPlayerMap={committeeGameData.teamAPlayerMap}
             teamBPlayerMap={committeeGameData.teamBPlayerMap}
             setCommitteeKeybindings={setCommitteeKeybindings}
+            onSaveGame={handleCommitteeSave}
             onGameSaved={() => {
               setCommitteeGameData(null);
               setCommitteeQuarter(1);
