@@ -14,6 +14,7 @@ import StatsView from "./components/coaching/StatsView";
 import ConfirmationModal from "./components/common/ConfirmationModal";
 import InputModal from "./components/common/InputModal";
 import HistoryView from "./components/coaching/HistoryView";
+import SessionExpiredModal from "./components/auth/SessionExpiredModal";
 import { useTimer } from "./hooks/useTimer";
 import {
   DEFAULT_COMMITTEE_KEYBINDINGS,
@@ -111,6 +112,7 @@ export default function App() {
     name: "",
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(false);
   const [appLoadingMsg, setAppLoadingMsg] = useState("");
   const [appModal, setAppModal] = useState({
@@ -460,6 +462,25 @@ export default function App() {
       JSON.stringify(isCommitteeRunning),
     );
   }, [isCommitteeRunning]);
+
+  // Keep a ref in sync with user so the Axios interceptor can read it without stale closures
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+
+  // Global 401 interceptor — shows SessionExpiredModal instead of redirecting
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const isAuthRoute = error.config?.url?.includes("/api/auth/");
+        if (error.response?.status === 401 && !isAuthRoute && userRef.current) {
+          setSessionExpired(true);
+        }
+        return Promise.reject(error);
+      },
+    );
+    return () => axios.interceptors.response.eject(id);
+  }, []);
 
   // Session Check
   useEffect(() => {
@@ -2137,6 +2158,17 @@ export default function App() {
           confirmButtonClass={appModal.btnClass}
         />
       </main>
+
+      {sessionExpired && (
+        <SessionExpiredModal
+          userRole={user?.role}
+          onSuccess={(freshUser) => {
+            setUser(freshUser);
+            setSessionExpired(false);
+            showNotification(`Welcome back, ${freshUser.name}!`);
+          }}
+        />
+      )}
     </div>
   );
 }

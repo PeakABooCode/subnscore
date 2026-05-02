@@ -379,7 +379,7 @@ export default function LiveView({
                       <span
                         className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded border ${pm > 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : pm < 0 ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-100 text-slate-500 border-slate-200"}`}
                       >
-                        +/- {pm > 0 ? `+${pm}` : pm}
+                        +/- ({pm > 0 ? `+${pm}` : pm})
                       </span>
                       {streak === "hot" && (
                         <span
@@ -510,7 +510,7 @@ export default function LiveView({
                             <span
                               className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded border ${pm > 0 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : pm < 0 ? "bg-red-50 text-red-600 border-red-100" : "bg-slate-100 text-slate-500 border-slate-200"}`}
                             >
-                              +/- {pm > 0 ? `+${pm}` : pm}
+                              +/- ({pm > 0 ? `+${pm}` : pm})
                             </span>
                             {streak === "hot" && (
                               <span
