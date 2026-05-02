@@ -163,21 +163,31 @@ export default function LiveView({
 
     // Find each court player's active (open) stint
     const activeStints = court
-      .map((id) => [...stints].reverse().find((s) => s.playerId === id && s.clockOut === null))
+      .map((id) =>
+        [...stints]
+          .reverse()
+          .find((s) => s.playerId === id && s.clockOut === null),
+      )
       .filter(Boolean);
 
     if (activeStints.length === 0) return null;
 
     // The unit formed when the LAST player entered — clock counts DOWN, so lowest clockIn = most recent entry
     const unitStartClock = Math.min(...activeStints.map((s) => s.clockIn));
-    const unitQuarter = activeStints.find((s) => s.clockIn === unitStartClock)?.quarter ?? quarter;
+    const unitQuarter =
+      activeStints.find((s) => s.clockIn === unitStartClock)?.quarter ??
+      quarter;
 
     // Seconds this unit has been on court together
-    const timeTogetherSecs = unitQuarter === quarter ? Math.max(0, unitStartClock - clock) : 0;
+    const timeTogetherSecs =
+      unitQuarter === quarter ? Math.max(0, unitStartClock - clock) : 0;
 
     // Actions that happened AFTER this unit formed (clock was at or below unitStartClock)
     const unitActions = actionHistory.filter(
-      (a) => a.quarter === unitQuarter && a.clock <= unitStartClock && a.clock >= clock,
+      (a) =>
+        a.quarter === unitQuarter &&
+        a.clock <= unitStartClock &&
+        a.clock >= clock,
     );
 
     const pointsFor = unitActions
@@ -257,7 +267,8 @@ export default function LiveView({
               restSecs = last.clockOut - clock;
             } else {
               restSecs += last.clockOut;
-              for (let q = last.quarter + 1; q < quarter; q++) restSecs += QUARTER_SECONDS;
+              for (let q = last.quarter + 1; q < quarter; q++)
+                restSecs += QUARTER_SECONDS;
               restSecs += QUARTER_SECONDS - clock;
             }
           }
@@ -285,7 +296,17 @@ export default function LiveView({
         courtPlayer: roster.find((p) => p.id === courtId),
       };
     }
-  }, [pendingSwapIds, court, playerStats, playerTimes, playerPlusMinus, roster, stints, quarter, clock]);
+  }, [
+    pendingSwapIds,
+    court,
+    playerStats,
+    playerTimes,
+    playerPlusMinus,
+    roster,
+    stints,
+    quarter,
+    clock,
+  ]);
 
   // ⏱️ REST TIMER: This is crucial for coaches to manage player fatigue.
   // It finds the last time a bench player was subbed out, and compares it to the current game clock.
@@ -539,7 +560,8 @@ export default function LiveView({
                         <span className="text-blue-300">IN</span>
                       </div>
                       <div className="text-sm text-blue-100 mt-0.5 truncate">
-                        → Suggested OUT: #{assistedSuggestion.courtPlayer?.jersey}{" "}
+                        → Suggested OUT: #
+                        {assistedSuggestion.courtPlayer?.jersey}{" "}
                         {assistedSuggestion.courtPlayer?.name}
                       </div>
                     </>
@@ -551,7 +573,8 @@ export default function LiveView({
                         <span className="text-blue-300">OUT</span>
                       </div>
                       <div className="text-sm text-blue-100 mt-0.5 truncate">
-                        → Suggested IN: #{assistedSuggestion.benchPlayer?.jersey}{" "}
+                        → Suggested IN: #
+                        {assistedSuggestion.benchPlayer?.jersey}{" "}
                         {assistedSuggestion.benchPlayer?.name}
                       </div>
                     </>
@@ -649,7 +672,7 @@ export default function LiveView({
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-1 bg-slate-900 text-amber-400 px-2 py-1 rounded-lg border border-slate-700">
                       <span className="text-[11px] font-black tabular-nums">
-                        {stats.score} pts
+                        {stats.score} PTS
                       </span>
                     </div>
                     <div className="flex items-center gap-1 bg-blue-50 text-blue-600 px-2 py-1 rounded-lg border border-blue-100">
@@ -670,12 +693,18 @@ export default function LiveView({
                       +/- {pm > 0 ? `+${pm}` : pm}
                     </div>
                     {streak === "hot" && (
-                      <span className="text-base animate-bounce" title="Hot Hand (3+ Scores)">
+                      <span
+                        className="text-base animate-bounce"
+                        title="Hot Hand (3+ Scores)"
+                      >
                         🔥
                       </span>
                     )}
                     {streak === "cold" && (
-                      <span className="text-base animate-pulse" title="Cold Streak (2+ TOs)">
+                      <span
+                        className="text-base animate-pulse"
+                        title="Cold Streak (2+ TOs)"
+                      >
                         ❄️
                       </span>
                     )}
@@ -706,7 +735,9 @@ export default function LiveView({
                       onClick={() => addStat(id, "turnovers", 1)}
                       className="h-11 rounded-xl border-2 flex items-center justify-center gap-2 transition-all active:scale-95 bg-orange-50 border-orange-100 text-orange-600 hover:bg-orange-100"
                     >
-                      <span className="text-[10px] font-black uppercase">TO</span>
+                      <span className="text-[10px] font-black uppercase">
+                        TO
+                      </span>
                       <span className="font-black text-xl leading-none">
                         {stats.turnovers || 0}
                       </span>
@@ -719,7 +750,9 @@ export default function LiveView({
                           : "bg-red-50 border-red-100 text-red-600 hover:bg-red-100"
                       }`}
                     >
-                      <span className="text-[10px] font-black uppercase">Foul</span>
+                      <span className="text-[10px] font-black uppercase">
+                        Foul
+                      </span>
                       <span className="font-black text-xl leading-none">
                         {stats.fouls}
                       </span>
