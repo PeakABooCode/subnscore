@@ -7,6 +7,7 @@ import pool from "../../config/db.js";
 
 export const saveGameSession = async (req, res) => {
   const {
+    gameId: clientGameId, // Frontend-generated UUID for upsert — may be null for legacy saves
     teamMeta,
     roster,
     playerStats,
@@ -15,28 +16,24 @@ export const saveGameSession = async (req, res) => {
     timeouts,
     finalScoreUs,
     finalScoreThem,
-    quarter, // Added quarter to payload
+    quarter,
     finalClock,
-    division, // Add division to the destructuring
     lineupsByQuarter,
   } = req.body;
 
   const coachId = req.user.id;
 
   try {
-    // We use a Transaction to ensure all-or-nothing saving (Atomic)
     await pool.query("BEGIN");
 
-    // 1. Upsert the Team (Find existing by name/coach or create)
+    // 1. Upsert team
     let teamRes = await pool.query(
       "SELECT id FROM teams WHERE coach_id = $1 AND name = $2",
       [coachId, teamMeta.teamName],
     );
-
     let teamId;
     if (teamRes.rows.length > 0) {
       teamId = teamRes.rows[0].id;
-      // Update league/season in case they changed
       await pool.query(
         "UPDATE teams SET league = $1, season = $2, division = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4",
         [teamMeta.league, teamMeta.season, teamMeta.division, teamId],
@@ -49,108 +46,103 @@ export const saveGameSession = async (req, res) => {
       teamId = newTeam.rows[0].id;
     }
 
-    // 2. Insert the Game record with final scores
+    // 2. Upsert game record — if clientGameId is provided the same game is updated in-place
+    //    (heartbeat + manual save are both idempotent this way)
     const gameResult = await pool.query(
-      `INSERT INTO games (team_id, opponent_name, final_score_us, final_score_them, game_mode, final_clock, quarter, lineups_by_quarter) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      `INSERT INTO games
+         (id, team_id, opponent_name, final_score_us, final_score_them,
+          game_mode, final_clock, quarter, lineups_by_quarter, division)
+       VALUES
+         (COALESCE($1::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (id) DO UPDATE SET
+         team_id            = EXCLUDED.team_id,
+         opponent_name      = EXCLUDED.opponent_name,
+         final_score_us     = EXCLUDED.final_score_us,
+         final_score_them   = EXCLUDED.final_score_them,
+         game_mode          = EXCLUDED.game_mode,
+         final_clock        = EXCLUDED.final_clock,
+         quarter            = EXCLUDED.quarter,
+         lineups_by_quarter = EXCLUDED.lineups_by_quarter,
+         division           = EXCLUDED.division,
+         game_date          = CURRENT_TIMESTAMP
+       RETURNING id`,
       [
+        clientGameId || null,
         teamId,
         teamMeta.opponent,
         finalScoreUs || 0,
         finalScoreThem || 0,
         teamMeta.game_mode || "FULL",
         finalClock || 0,
-        quarter || 1, // Use the quarter from the payload
+        quarter || 1,
         JSON.stringify(lineupsByQuarter || {}),
+        teamMeta.division || null,
       ],
     );
     const gameId = gameResult.rows[0].id;
 
-    // 3. Map Players and save Box Score Stats
-    const playerMap = {}; // Maps frontend temporary IDs to Database UUIDs
+    // 3. Wipe child records so re-saves are always a clean slate (idempotent)
+    await pool.query("DELETE FROM game_stats           WHERE game_id = $1", [gameId]);
+    await pool.query("DELETE FROM player_quarter_stats WHERE game_id = $1", [gameId]);
+    await pool.query("DELETE FROM action_logs          WHERE game_id = $1", [gameId]);
+    await pool.query("DELETE FROM substitution_logs    WHERE game_id = $1", [gameId]);
 
+    // 4. Map players and insert box-score stats
+    const playerMap = {};
     for (const player of roster) {
-      // Check if player already exists in this team to prevent duplication
       let pResult = await pool.query(
         "SELECT id FROM players WHERE team_id = $1 AND name = $2 AND jersey_number = $3",
         [teamId, player.name, player.jersey],
       );
-
       let dbPlayerId;
       if (pResult.rows.length > 0) {
         dbPlayerId = pResult.rows[0].id;
       } else {
-        const insertRes = await pool.query(
+        const ins = await pool.query(
           "INSERT INTO players (team_id, name, jersey_number) VALUES ($1, $2, $3) RETURNING id",
           [teamId, player.name, player.jersey],
         );
-        dbPlayerId = insertRes.rows[0].id;
+        dbPlayerId = ins.rows[0].id;
       }
-
       playerMap[player.id] = dbPlayerId;
 
       const stats = playerStats[player.id] || {};
-
-      // UPDATED: Added 'minutes' column to store the calculated playing time
       await pool.query(
-        `INSERT INTO game_stats (game_id, player_id, points, fouls, turnovers, minutes, seconds_played) 
+        `INSERT INTO game_stats
+           (game_id, player_id, points, fouls, turnovers, minutes, seconds_played)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          gameId,
-          dbPlayerId,
-          stats.score || 0,
-          stats.fouls || 0,
-          stats.turnovers || 0,
-          player.calculatedMins || "0:00", // Store formatted string for the UI Box Score
-          player.rawSeconds || 0,
-        ],
+        [gameId, dbPlayerId, stats.score || 0, stats.fouls || 0,
+         stats.turnovers || 0, player.calculatedMins || "0:00", player.rawSeconds || 0],
       );
     }
 
-    // 4. Save Summarized Quarter Stats
+    // 5. Quarter stats
     for (const qStat of calculatedQuarterStats) {
       await pool.query(
-        `INSERT INTO player_quarter_stats (game_id, player_id, quarter, points, fouls, turnovers, seconds_played) 
+        `INSERT INTO player_quarter_stats
+           (game_id, player_id, quarter, points, fouls, turnovers, seconds_played)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          gameId,
-          playerMap[qStat.playerId] || null, // Ensure null if player ID is missing
-          qStat.quarter,
-          qStat.points,
-          qStat.fouls,
-          qStat.turnovers,
-          qStat.secondsPlayed,
-        ],
+        [gameId, playerMap[qStat.playerId] || null,
+         qStat.quarter, qStat.points, qStat.fouls, qStat.turnovers, qStat.secondsPlayed],
       );
     }
 
-    // 4. Save Action Logs & Specific Substitution Logs
+    // 6. Action logs and substitution logs
     for (const log of actionHistory) {
-      // A. Save to the general action_logs table
-      // Use || null to ensure we never pass 'undefined' to the DB driver
       const dbPlayerId = log.playerId ? playerMap[log.playerId] || null : null;
-      // IMPORTANT: The 'player_id' column in 'action_logs' table MUST be NULLABLE.
-
       await pool.query(
-        `INSERT INTO action_logs (game_id, player_id, action_type, amount, quarter, time_remaining) 
+        `INSERT INTO action_logs
+           (game_id, player_id, action_type, amount, quarter, time_remaining)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [gameId, dbPlayerId, log.type, log.amount || 0, log.quarter, log.clock],
       );
-
-      // B. Save to substitution_logs if the type matches a sub event
       if (log.type === "SUB_IN" || log.type === "SUB_OUT") {
-        const mappedType = log.type === "SUB_IN" ? "IN" : "OUT";
-
         await pool.query(
-          `INSERT INTO substitution_logs (game_id, player_id, quarter, time_remaining, action_type) 
+          `INSERT INTO substitution_logs
+             (game_id, player_id, quarter, time_remaining, action_type)
            VALUES ($1, $2, $3, $4, $5)`,
-          [
-            gameId,
-            dbPlayerId, // Already calculated above with null safety
-            log.quarter,
-            log.clock, // Send as Integer to match action_logs data type
-            mappedType,
-          ],
+          [gameId, dbPlayerId, log.quarter, log.clock,
+           log.type === "SUB_IN" ? "IN" : "OUT"],
         );
       }
     }
@@ -159,9 +151,8 @@ export const saveGameSession = async (req, res) => {
     res.json({ message: "Game saved successfully!", gameId });
   } catch (err) {
     await pool.query("ROLLBACK");
-    console.error("Database Save Error Details:", err); // Log the full error for debugging
-    console.error("Database Save Error:", err);
-    res.status(500).json({ error: "Failed to save game data." });
+    console.error("Database Save Error:", err.message, err.code);
+    res.status(500).json({ error: "Failed to save game data.", detail: err.message });
   }
 };
 

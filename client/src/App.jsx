@@ -113,6 +113,22 @@ export default function App() {
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+
+  // --- Network & Offline Sync State ---
+  const [gameSessionId, setGameSessionId] = useState(
+    () => localStorage.getItem("subnscore_gameSessionId") || null,
+  );
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncQueue, setSyncQueue] = useState(() => {
+    try {
+      const saved = localStorage.getItem("subnscore_sync_queue");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const [isAppLoading, setIsAppLoading] = useState(false);
   const [appLoadingMsg, setAppLoadingMsg] = useState("");
   const [appModal, setAppModal] = useState({
@@ -481,6 +497,53 @@ export default function App() {
     );
     return () => axios.interceptors.response.eject(id);
   }, []);
+
+  // Persist sync queue to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem("subnscore_sync_queue", JSON.stringify(syncQueue));
+  }, [syncQueue]);
+
+  // Listen for browser online/offline events
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
+  // Refs so the heartbeat interval always reads fresh state without restarting
+  const buildPayloadRef = useRef(null);
+  const isOnlineRef = useRef(isOnline);
+  const gameSessionIdRef = useRef(gameSessionId);
+  useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+  useEffect(() => { gameSessionIdRef.current = gameSessionId; }, [gameSessionId]);
+
+  // 60-second heartbeat auto-save — silently pushes current state to the cloud
+  useEffect(() => {
+    const id = setInterval(async () => {
+      if (!isOnlineRef.current || !gameSessionIdRef.current) return;
+      if (!buildPayloadRef.current) return;
+      try {
+        const payload = buildPayloadRef.current();
+        await axios.post("/api/coaching/games/save", payload);
+      } catch {
+        // Silently fail — data is safe in localStorage
+      }
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Auto-flush the outbox whenever the connection comes back
+  useEffect(() => {
+    if (isOnline && syncQueue.length > 0 && !isSyncing) {
+      flushSyncQueueRef.current?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
 
   // Session Check
   useEffect(() => {
@@ -1131,6 +1194,11 @@ export default function App() {
       return;
     }
 
+    // Generate a stable session ID so every save (heartbeat or manual) upserts the same record
+    const newSessionId = crypto.randomUUID();
+    setGameSessionId(newSessionId);
+    localStorage.setItem("subnscore_gameSessionId", newSessionId);
+
     // NEW GAME INITIALIZATION
     try {
       setCourt([]);
@@ -1199,6 +1267,8 @@ export default function App() {
     localStorage.removeItem("subnscore_committeeIsRunning");
     localStorage.removeItem("subnscore_historyData");
     localStorage.removeItem("subnscore_pasarelleTriggered");
+    localStorage.removeItem("subnscore_gameSessionId");
+    setGameSessionId(null);
 
     // 3. Go back to Setup View
     setView(nextView);
@@ -1564,120 +1634,142 @@ export default function App() {
   // ☁️ SAVE TO CLOUD: This function bundles up all the stats, history, and rosters,
   // and sends them to the backend server to be stored permanently in the PostgreSQL database.
   // --- Backend Integration Handlers --- //
+  // Builds the full save payload from current game state — used by both manual save and heartbeat
+  const buildSavePayload = () => {
+    const teamScore = Object.values(playerStats).reduce(
+      (acc, curr) => acc + (curr?.score || 0),
+      0,
+    );
+    const oppScore = actionHistory
+      .filter((a) => a.type === "opp_score")
+      .reduce((acc, a) => acc + (a.amount || 0), 0);
+
+    const finalRosterWithMins = roster.map((player) => {
+      let totalSeconds = 0;
+      stints.filter((s) => s.playerId === player.id).forEach((s) => {
+        const out = s.clockOut !== null ? s.clockOut : coachingClock;
+        totalSeconds += s.clockIn - out;
+      });
+      return {
+        ...player,
+        name: (player.name || "").trim(),
+        jersey: (player.jersey || "").toString().trim(),
+        calculatedMins: formatTime(totalSeconds),
+        rawSeconds: totalSeconds,
+      };
+    });
+
+    const calculatedQuarterStats = [];
+    for (let q = 1; q <= coachingQuarter; q++) {
+      roster.forEach((p) => {
+        let qSecs = 0;
+        stints
+          .filter((s) => s.playerId === p.id && s.quarter === q)
+          .forEach((s) => {
+            const out = s.clockOut !== null ? s.clockOut : coachingClock;
+            qSecs += s.clockIn - out;
+          });
+        const qPts = actionHistory
+          .filter((a) => a.playerId === p.id && a.quarter === q && a.type === "score")
+          .reduce((sum, a) => sum + a.amount, 0);
+        const qFls = actionHistory
+          .filter((a) => a.playerId === p.id && a.quarter === q && a.type === "fouls")
+          .reduce((sum, a) => sum + a.amount, 0);
+        const qTOs = actionHistory
+          .filter((a) => a.playerId === p.id && a.quarter === q && a.type === "turnovers")
+          .reduce((sum, a) => sum + a.amount, 0);
+        if (qSecs > 0 || qPts > 0 || qFls > 0 || qTOs > 0) {
+          calculatedQuarterStats.push({
+            playerId: p.id, quarter: q,
+            points: qPts, fouls: qFls, turnovers: qTOs, secondsPlayed: qSecs,
+          });
+        }
+      });
+    }
+
+    const closedStints = stints.map((s) =>
+      s.clockOut === null ? { ...s, clockOut: coachingClock } : s,
+    );
+
+    return {
+      gameId: gameSessionId,
+      teamMeta: { ...teamMeta, game_mode: gameMode },
+      roster: finalRosterWithMins,
+      calculatedQuarterStats,
+      playerStats,
+      actionHistory,
+      timeouts,
+      finalScoreUs: teamScore,
+      finalScoreThem: oppScore,
+      finalClock: coachingClock,
+      quarter: coachingQuarter,
+      lineupsByQuarter: closedStints,
+    };
+  };
+
+  // Keep heartbeat ref always pointing to the latest buildSavePayload closure
+  buildPayloadRef.current = buildSavePayload;
+
+  // Flush queued saves to the cloud — called on reconnect or page load
+  const flushSyncQueue = async () => {
+    if (isSyncing || syncQueue.length === 0) return;
+    setIsSyncing(true);
+    showNotification(`Syncing ${syncQueue.length} queued game(s)…`);
+    const remaining = [];
+    for (const item of syncQueue) {
+      try {
+        await axios.post("/api/coaching/games/save", item.payload);
+        await new Promise((r) => setTimeout(r, 1200)); // stay under rate limit
+      } catch (err) {
+        if (err.response?.status === 429) {
+          remaining.push(item);
+          break; // stop flushing, try again later
+        }
+        remaining.push(item);
+      }
+    }
+    setSyncQueue(remaining);
+    if (remaining.length === 0) showNotification("All queued games synced!");
+    setIsSyncing(false);
+  };
+
+  // Stable ref so the auto-flush useEffect can call flushSyncQueue without stale closure
+  const flushSyncQueueRef = useRef(flushSyncQueue);
+  flushSyncQueueRef.current = flushSyncQueue;
+
   const handleSaveGame = async () => {
     if (user?.email === "demo@subnscore.com")
       return showNotification("Demo Mode: Cannot save.");
 
-    const teamScore = Object.values(playerStats).reduce((acc, curr) => {
-      if (!curr) return acc;
-      return acc + (curr.score || 0);
-    }, 0);
+    const payload = buildSavePayload();
 
-    // Automatically calculate final opponent score from the recorded logs
-    const oppScore = actionHistory
-      .filter((a) => a.type === "opp_score")
-      .reduce((acc, curr) => acc + (curr.amount || 0), 0);
+    if (!isOnline) {
+      setSyncQueue((prev) => [
+        ...prev,
+        { id: Date.now(), payload, createdAt: new Date().toISOString() },
+      ]);
+      showNotification("No connection — game queued. Will sync when online.");
+      resetGame(true);
+      return;
+    }
 
     try {
-      // Final Minutes and Seconds Calculation for the DB columns
-      const finalRosterWithMins = roster.map((player) => {
-        let totalSeconds = 0;
-        stints
-          .filter((s) => s.playerId === player.id)
-          .forEach((s) => {
-            const out = s.clockOut !== null ? s.clockOut : coachingClock;
-            totalSeconds += s.clockIn - out;
-          });
-
-        return {
-          ...player,
-          name: (player.name || "").trim(),
-          jersey: (player.jersey || "").toString().trim(),
-          calculatedMins: formatTime(totalSeconds),
-          rawSeconds: totalSeconds,
-        };
-      });
-
-      // Calculate detailed stats for EVERY quarter to be saved
-      const calculatedQuarterStats = [];
-      for (let q = 1; q <= quarter; q++) {
-        roster.forEach((p) => {
-          let qSecs = 0;
-          stints
-            .filter((s) => s.playerId === p.id && s.quarter === q)
-            .forEach((s) => {
-              const out = s.clockOut !== null ? s.clockOut : coachingClock;
-              qSecs += s.clockIn - out;
-            });
-
-          const qPts = actionHistory
-            .filter(
-              (a) =>
-                a.playerId === p.id && a.quarter === q && a.type === "score",
-            )
-            .reduce((sum, a) => sum + a.amount, 0);
-          const qFls = actionHistory
-            .filter(
-              (a) =>
-                a.playerId === p.id && a.quarter === q && a.type === "fouls",
-            )
-            .reduce((sum, a) => sum + a.amount, 0);
-          const qTOs = actionHistory
-            .filter(
-              (a) =>
-                a.playerId === p.id &&
-                a.quarter === q &&
-                a.type === "turnovers",
-            )
-            .reduce((sum, a) => sum + a.amount, 0);
-
-          if (qSecs > 0 || qPts > 0 || qFls > 0 || qTOs > 0) {
-            calculatedQuarterStats.push({
-              playerId: p.id,
-              quarter: q,
-              points: qPts,
-              fouls: qFls,
-              turnovers: qTOs,
-              secondsPlayed: qSecs,
-            });
-          }
-        });
-      }
-
-      // Close any active stints for the final save payload
-      const closedStints = stints.map((s) =>
-        s.clockOut === null ? { ...s, clockOut: coachingClock } : s,
-      );
-
-      const payload = {
-        teamMeta: {
-          ...teamMeta,
-          game_mode: gameMode,
-        },
-        roster: finalRosterWithMins,
-        calculatedQuarterStats,
-        playerStats,
-        actionHistory,
-        timeouts,
-        finalScoreUs: teamScore,
-        finalScoreThem: oppScore,
-        finalClock: coachingClock,
-        quarter: coachingQuarter,
-        lineupsByQuarter: closedStints, // Save the closed stints array as the source of truth
-      };
-
-      const res = await axios.post("/api/coaching/games/save", payload);
+      await axios.post("/api/coaching/games/save", payload);
       showNotification("Game saved to cloud!");
-
-      // Pass 'true' to force reset everything (including textboxes) without a second prompt
       resetGame(true);
     } catch (err) {
       console.error("Save Error:", err);
-      const msg =
-        err.response?.status === 429
-          ? "Slow down, Coach! Too many save attempts. Try again in a minute."
-          : "Save failed. Please check your connection.";
-      showNotification(msg);
+      if (err.response?.status === 429) {
+        showNotification("Slow down, Coach! Too many save attempts.");
+      } else {
+        // Network/server failure — queue for retry
+        setSyncQueue((prev) => [
+          ...prev,
+          { id: Date.now(), payload, createdAt: new Date().toISOString() },
+        ]);
+        showNotification("Save failed — queued for retry when online.");
+        resetGame(true);
+      }
     }
   };
 
@@ -1874,6 +1966,22 @@ export default function App() {
               <span className="hidden min-[400px]:block uppercase tracking-tighter">
                 SubNScore
               </span>
+              <div
+                title={
+                  isOnline
+                    ? syncQueue.length > 0
+                      ? `Online — ${syncQueue.length} game(s) queued to sync`
+                      : "Online"
+                    : "Offline — saving locally"
+                }
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  isOnline
+                    ? syncQueue.length > 0
+                      ? "bg-amber-400 animate-pulse"
+                      : "bg-emerald-400"
+                    : "bg-red-500 animate-pulse"
+                }`}
+              />
             </div>
             {/* Only show coaching navigation if the user is a Coach and not on the selection dashboards */}
             {view !== "DASHBOARD" &&
