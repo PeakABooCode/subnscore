@@ -1243,6 +1243,11 @@ export default function App() {
       onCourtSelected.length === onBenchSelected.length;
     // B. Initial/Quarterly lineup selection (Court is empty, picking 5 from bench)
     const isInitialLineup = court.length === 0 && onBenchSelected.length === 5;
+    // C. Full unit rotation: 5 bench selected with no court selections → swap entire unit
+    const isFullRotation =
+      court.length === 5 &&
+      onBenchSelected.length === 5 &&
+      onCourtSelected.length === 0;
 
     if (isInitialLineup) {
       const newStints = [...stints];
@@ -1273,6 +1278,37 @@ export default function App() {
       showNotification(
         `Subbed ${onBenchSelected.length} players onto the court!`,
       );
+    } else if (isFullRotation) {
+      const newStints = [...stints];
+      const newCourt = [...court];
+      const newActions = [...actionHistory];
+
+      court.forEach((pOut, index) => {
+        const pIn = onBenchSelected[index];
+        newStints.forEach((s, i) => {
+          if (s.playerId === pOut && s.clockOut === null) {
+            newStints[i] = { ...s, clockOut: coachingClock };
+          }
+        });
+        newStints.push({
+          id: Math.random().toString(),
+          playerId: pIn,
+          quarter: coachingQuarter,
+          clockIn: coachingClock,
+          clockOut: null,
+        });
+        newCourt[index] = pIn;
+        newActions.push(
+          { type: "SUB_IN", playerId: pIn, clock: coachingClock, quarter: coachingQuarter },
+          { type: "SUB_OUT", playerId: pOut, clock: coachingClock, quarter: coachingQuarter },
+        );
+      });
+
+      setStints(newStints);
+      setCourt(newCourt);
+      setActionHistory(newActions);
+      setPendingSwapIds([]);
+      showNotification("Full unit rotation!");
     } else if (isBalancedSwap) {
       const newStints = [...stints];
       const newCourt = [...court];
@@ -1343,7 +1379,8 @@ export default function App() {
     });
 
     if (type === "fouls") {
-      const currentFouls = teamFouls[quarter] || 0;
+      const foulsBucket = Math.min(coachingQuarter, 4);
+      const currentFouls = teamFouls[foulsBucket] || 0;
       const nextFouls = currentFouls + amount;
 
       if (nextFouls === 4) {
@@ -1354,7 +1391,7 @@ export default function App() {
 
       setTeamFouls((prev) => ({
         ...prev,
-        [coachingQuarter]: nextFouls,
+        [foulsBucket]: nextFouls,
       }));
       setIsCoachingRunning(false);
     }
@@ -1405,13 +1442,10 @@ export default function App() {
       }));
 
       if (lastAction.type === "fouls") {
+        const foulsBucket = Math.min(lastAction.quarter, 4);
         setTeamFouls((prev) => ({
           ...prev,
-          [lastAction.quarter]: Math.max(
-            // lastAction.quarter is correct here
-            0,
-            (prev[lastAction.quarter] || 0) - 1,
-          ),
+          [foulsBucket]: Math.max(0, (prev[foulsBucket] || 0) - 1),
         }));
       }
     }
@@ -1447,9 +1481,10 @@ export default function App() {
 
       // 2. Revert team fouls specifically
       if (action.type === "fouls") {
+        const foulsBucket = Math.min(action.quarter, 4);
         setTeamFouls((prev) => ({
           ...prev,
-          [action.quarter]: Math.max(0, (prev[action.quarter] || 0) - 1), // action.quarter is correct here
+          [foulsBucket]: Math.max(0, (prev[foulsBucket] || 0) - 1),
         }));
       }
     }

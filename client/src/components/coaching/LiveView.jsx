@@ -332,7 +332,13 @@ export default function LiveView({
           )}
 
           {/* Loop through the 'court' list and create a Player Card for everyone currently playing. */}
-          {court.map((id) => {
+          {[...court]
+            .sort((a, b) => {
+              const pa = roster.find((r) => r.id === a);
+              const pb = roster.find((r) => r.id === b);
+              return parseInt(pa?.jersey || "0", 10) - parseInt(pb?.jersey || "0", 10);
+            })
+            .map((id) => {
             const p = roster.find((r) => r.id === id);
             // Safety check: if player not found in roster, skip rendering to prevent crash
             if (!p) return null;
@@ -479,6 +485,7 @@ export default function LiveView({
               {/* Look through the whole roster, but only show players who are NOT on the court. */}
               {roster
                 .filter((p) => !court.includes(p.id))
+                .sort((a, b) => parseInt(a.jersey || "0", 10) - parseInt(b.jersey || "0", 10))
                 .map((p) => {
                   const isSelected = pendingSwapIds.includes(p.id);
                   const stats = playerStats[p.id] || {
@@ -573,12 +580,12 @@ export default function LiveView({
           <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-xl border-l-4 border-red-500">
             <div className="flex justify-between items-center bg-slate-800 p-3 rounded-xl">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                Team Fouls {shortPeriodName}
+                Team Fouls {quarter >= 4 ? "4th+OT" : shortPeriodName}
               </span>
               <span
-                className={`text-2xl font-black ${teamFouls[quarter] >= 5 ? "text-red-500 animate-pulse" : "text-white"}`}
+                className={`text-2xl font-black ${(teamFouls[Math.min(quarter, 4)] || 0) >= 5 ? "text-red-500 animate-pulse" : "text-white"}`}
               >
-                {teamFouls[quarter]}
+                {teamFouls[Math.min(quarter, 4)] || 0}
               </span>
             </div>
 
