@@ -914,13 +914,14 @@ export default function LiveView({
             </button>
           </div>
 
-          {/* Advance Quarter Button */}
+          {/* Advance Quarter Button 
           <button
             onClick={() => advanceQuarter()}
             className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg transition-all active:scale-95"
           >
             Advance to {nextShortPeriodName}
           </button>
+          */}
         </div>
       </div>
 
