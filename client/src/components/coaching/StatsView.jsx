@@ -262,8 +262,7 @@ export default function StatsView({
       .filter((a) => a.type === "opp_score")
       .reduce((acc, a) => acc + a.amount, 0);
     const runDiff = recentUs - recentThem;
-    const momentumTag =
-      runDiff >= 4 ? "HOT" : runDiff <= -4 ? "COLD" : null;
+    const momentumTag = runDiff >= 4 ? "HOT" : runDiff <= -4 ? "COLD" : null;
 
     // Per-player +/-
     const pm = {};
@@ -308,14 +307,15 @@ export default function StatsView({
       .map((p) => ({ player: p, fouls: playerStats[p.id]?.fouls }));
 
     // Best lineup (min 60s on court, highest +/-)
-    const bestLineup = [...lineupStats]
-      .filter((l) => l.totalTime >= 60)
-      .sort(
-        (a, b) =>
-          b.pointsScored -
-          (b.pointsAgainst || 0) -
-          (a.pointsScored - (a.pointsAgainst || 0)),
-      )[0] || null;
+    const bestLineup =
+      [...lineupStats]
+        .filter((l) => l.totalTime >= 60)
+        .sort(
+          (a, b) =>
+            b.pointsScored -
+            (b.pointsAgainst || 0) -
+            (a.pointsScored - (a.pointsAgainst || 0)),
+        )[0] || null;
 
     // Enriched roster for performer cards
     const enriched = roster
@@ -339,9 +339,7 @@ export default function StatsView({
 
     const needsAttention =
       enriched.length > 1
-        ? [...enriched].sort(
-            (a, b) => a.pm - a.tos * 2 - (b.pm - b.tos * 2),
-          )[0]
+        ? [...enriched].sort((a, b) => a.pm - a.tos * 2 - (b.pm - b.tos * 2))[0]
         : null;
 
     // Auto-generated bullet insights
@@ -358,12 +356,18 @@ export default function StatsView({
         `#${recentToPlayer.player?.jersey} ${recentToPlayer.player?.name} — ${recentToPlayer.count} TOs recently`,
       );
     foulTroubled.forEach(({ player, fouls }) =>
-      bullets.push(`Foul trouble: #${player.jersey} ${player.name} (${fouls} fouls)`),
+      bullets.push(
+        `Foul trouble: #${player.jersey} ${player.name} (${fouls} fouls)`,
+      ),
     );
     if (runDiff <= -6)
-      bullets.push(`Opponent on a ${recentThem}-${recentUs} run — call timeout?`);
+      bullets.push(
+        `Opponent on a ${recentThem}-${recentUs} run — call timeout?`,
+      );
     if (teamTotalTurnovers >= 10)
-      bullets.push(`${teamTotalTurnovers} total turnovers — ball security critical`);
+      bullets.push(
+        `${teamTotalTurnovers} total turnovers — ball security critical`,
+      );
     if (bullets.length === 0)
       bullets.push("Game is under control — keep executing your game plan");
 
@@ -380,7 +384,14 @@ export default function StatsView({
       bullets,
       pm,
     };
-  }, [actionHistory, roster, playerStats, stints, lineupStats, teamTotalTurnovers]);
+  }, [
+    actionHistory,
+    roster,
+    playerStats,
+    stints,
+    lineupStats,
+    teamTotalTurnovers,
+  ]);
 
   // Simple visual trend component
   const TrendSparkline = ({ trend = [0] }) => {
@@ -472,6 +483,30 @@ export default function StatsView({
       {/* 2. TAB NAVIGATION */}
       <div className="flex bg-slate-200 p-1 rounded-xl shadow-sm border border-slate-300">
         <button
+          onClick={() => setActiveTab("insights")}
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
+            activeTab === "insights"
+              ? "bg-white text-amber-500 shadow-sm"
+              : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
+          }`}
+        >
+          <Zap size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Insights</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("lineups")}
+          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
+            activeTab === "lineups"
+              ? "bg-white text-blue-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
+          }`}
+        >
+          <Group size={16} className="md:w-[18px] md:h-[18px]" />{" "}
+          <span className="truncate">Lineups</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("boxscore")}
           className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
             activeTab === "boxscore"
@@ -503,28 +538,6 @@ export default function StatsView({
         >
           <History size={16} className="md:w-[18px] md:h-[18px]" />{" "}
           <span className="truncate">Timeline</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("lineups")}
-          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
-            activeTab === "lineups"
-              ? "bg-white text-blue-600 shadow-sm"
-              : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
-          }`}
-        >
-          <Group size={16} className="md:w-[18px] md:h-[18px]" />{" "}
-          <span className="truncate">Lineups</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("insights")}
-          className={`flex-1 py-2.5 md:py-3 text-[10px] md:text-sm font-black uppercase tracking-tight md:tracking-widest rounded-lg flex items-center justify-center gap-1 md:gap-2 transition-all ${
-            activeTab === "insights"
-              ? "bg-white text-amber-500 shadow-sm"
-              : "text-slate-500 hover:text-slate-800 hover:bg-slate-300/50"
-          }`}
-        >
-          <Zap size={16} className="md:w-[18px] md:h-[18px]" />{" "}
-          <span className="truncate">Insights</span>
         </button>
       </div>
 
@@ -1180,7 +1193,6 @@ export default function StatsView({
         {/* 7. TAB 5: INSIGHTS */}
         {activeTab === "insights" && (
           <div className="space-y-4">
-
             {/* ── BLOCK A: Score + Game State ── */}
             <div className="bg-slate-900 text-white rounded-2xl p-5 border-b-4 border-amber-500 shadow-xl">
               <div className="flex items-start justify-between gap-4">
@@ -1393,7 +1405,9 @@ export default function StatsView({
                       +/-
                     </span>
                     <span className="text-slate-500">|</span>
-                    <span>{formatTime(insightsData.bestLineup.totalTime)} mins</span>
+                    <span>
+                      {formatTime(insightsData.bestLineup.totalTime)} mins
+                    </span>
                   </div>
                 </div>
 
@@ -1427,7 +1441,6 @@ export default function StatsView({
                 </div>
               </div>
             )}
-
           </div>
         )}
       </div>
