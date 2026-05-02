@@ -1,6 +1,9 @@
 import React from "react";
 import { AlertTriangle, X } from "lucide-react";
 
+// ⚠️ CONFIRMATION MODAL: A "Modal" is a popup box that overlays the entire screen.
+// We use this to stop the user and ask "Are you sure?" before doing something dangerous
+// like deleting a game or resetting the scoresheet. It prevents accidental clicks!
 export default function ConfirmationModal({
   isOpen,
   onClose,
@@ -11,6 +14,8 @@ export default function ConfirmationModal({
   cancelText = "Cancel",
   confirmButtonClass = "bg-red-600 hover:bg-red-700",
 }) {
+  // CONDITIONAL RENDERING: If `isOpen` is false, we return `null`.
+  // Returning `null` tells React to draw absolutely nothing for this component.
   if (!isOpen) return null;
 
   return (

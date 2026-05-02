@@ -25,6 +25,9 @@ import {
 
 axios.defaults.withCredentials = true;
 
+// 🧠 APP COMPONENT: Think of this as the "Brain" or "Control Center" of your app.
+// It holds all the main data (state) and passes it down to the different screens (views).
+// If data needs to be shared between the Setup screen and the Live screen, it lives here.
 export default function App() {
   // --- Independent Timers for Coaching and Committee ---
   const coachingTimer = useTimer();
@@ -44,6 +47,9 @@ export default function App() {
     setIsRunning: setIsCommitteeRunning,
   } = committeeTimer;
 
+  // 💾 USE-STATE (Memory): `useState` is how React remembers things.
+  // For example, `user` holds the logged-in person's info. `setUser` is the function we use to update it.
+  // Whenever `setUser` is called, React automatically re-draws the screen to show the new data.
   // --- Global App State ---
   const [user, setUser] = useState(null);
   const [view, setView] = useState(() => {
@@ -299,6 +305,10 @@ export default function App() {
       return s && (s.score > 0 || s.fouls > 0 || s.turnovers > 0);
     });
 
+  // 🔄 USE-EFFECT (Auto-Savers): `useEffect` is a tool that runs code automatically in the background.
+  // Here, we are telling React: "Every time the 'teamMeta' data changes, run this function."
+  // The function saves the data to `localStorage` (the browser's hard drive) so if the user
+  // accidentally closes the tab, their data is still there when they come back!
   // Auto-Savers
   useEffect(() => {
     if (!isLoaded.current) return;
@@ -454,6 +464,16 @@ export default function App() {
   // Session Check
   useEffect(() => {
     const checkSession = async () => {
+      // Detect password reset token in URL on load
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has("token")) {
+        setAuthMode("resetPassword");
+        setView("AUTH");
+        setUser(null);
+        setIsAuthLoading(false);
+        return; // Halt further session checks to force the rescue/reset screen
+      }
+
       try {
         const res = await axios.get("/api/auth/me");
         setUser(res.data.user);
@@ -481,13 +501,6 @@ export default function App() {
       }
     };
     checkSession();
-
-    // Detect password reset token in URL on load
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has("token")) {
-      setAuthMode("resetPassword");
-      setView("AUTH");
-    }
 
     // 1. Restore clock and timer state from localStorage on mount
     const savedCoachingClock = localStorage.getItem("subnscore_coachingClock");
@@ -574,6 +587,9 @@ export default function App() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // 🔐 AUTHENTICATION LOGIC: This handles the Login and Register buttons.
+  // `async` means this function has to talk to the internet and "wait" for a response.
+  // We use `axios.post` to send the user's email and password to the database safely.
   // --- Auth Handlers ---
   const handleLocalAuth = async (e) => {
     e.preventDefault();
@@ -600,6 +616,8 @@ export default function App() {
         } else if (selectedModule === "COMMITTEE") {
           setCommitteeQuarter(1); // Reset committee quarter on login
           setView("COMMITTEE_DASHBOARD");
+        } else {
+          setView("DASHBOARD"); // Default to dashboard if no module is selected during rescue
         }
         showNotification(`Welcome back, ${res.data.user.name}!`);
       } else {
@@ -1163,6 +1181,9 @@ export default function App() {
     setView(nextView);
   };
 
+  // 🔄 SUBSTITUTION LOGIC: This is the most complex and important function for the game.
+  // It checks who is on the court and who is on the bench, and swaps them.
+  // It also records exactly what time on the clock the swap happened for accurate stats.
   // --- Live Action Handlers --- //
   const handleSwap = (playerId) => {
     if (isCoachingRunning) return showNotification("Pause clock to sub!");
@@ -1465,6 +1486,8 @@ export default function App() {
     setIsCoachingRunning(false);
   };
 
+  // ☁️ SAVE TO CLOUD: This function bundles up all the stats, history, and rosters,
+  // and sends them to the backend server to be stored permanently in the PostgreSQL database.
   // --- Backend Integration Handlers --- //
   const handleSaveGame = async () => {
     if (user?.email === "demo@subnscore.com")
@@ -1988,6 +2011,7 @@ export default function App() {
             stints={stints}
             playerStats={playerStats}
             clock={coachingClock}
+            setClock={setCoachingClock}
             isRunning={isCoachingRunning}
             setIsRunning={setIsCoachingRunning}
             quarter={coachingQuarter}

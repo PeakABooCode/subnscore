@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import ConfirmationModal from "../common/ConfirmationModal";
 
+// 📚 HISTORY VIEW: This screen shows a list of all past games saved in the cloud.
+// It's a great example of fetching data from an API, filtering it, and displaying it.
 export default function HistoryView({ onViewGame }) {
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +23,9 @@ export default function HistoryView({ onViewGame }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  // 📥 FETCH DATA: `useEffect` with an empty array `[]` at the end means:
+  // "Run this exactly ONCE when the screen first loads."
+  // It calls our API to get the list of games and stores them in the `games` memory.
   useEffect(() => {
     const fetchGames = async () => {
       try {
@@ -52,6 +57,9 @@ export default function HistoryView({ onViewGame }) {
     }
   };
 
+  // 🔍 FILTERING LOGIC: This takes the master list of `games` and creates a temporary `filteredGames` list.
+  // It checks if the game's name matches the search box, and if the date fits the "From" and "To" dates.
+  // We use this filtered list to draw the cards on the screen.
   const filteredGames = games.filter((g) => {
     const search = searchTerm.toLowerCase().trim();
     const gameDate = new Date(g.game_date);
@@ -75,6 +83,8 @@ export default function HistoryView({ onViewGame }) {
     return matchesSearch && matchesDate;
   });
 
+  // 📊 EXPORT TO CSV: This creates a spreadsheet file entirely inside the browser!
+  // It formats the data with commas (CSV), turns it into a downloadable file, and forces the browser to click it.
   const handleExportCSV = () => {
     const headers = [
       "Date",

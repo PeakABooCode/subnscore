@@ -2,10 +2,13 @@ import React, { useState, useEffect } from "react";
 import { X, User, Hash } from "lucide-react";
 import { capitalizeWords } from "../../utils/helpers";
 
+// ✏️ EDIT PLAYER MODAL: This popup is specifically for fixing typos in a player's name or jersey.
 export default function EditPlayerModal({ player, isOpen, onClose, onSave }) {
   const [editedName, setEditedName] = useState("");
   const [editedJersey, setEditedJersey] = useState("");
 
+  // `useEffect` watches the `player` prop. When a user clicks "Edit" on a specific player,
+  // this automatically fills the popup's text boxes with that player's current name and jersey.
   useEffect(() => {
     if (player) {
       setEditedName(player.name);
@@ -13,6 +16,8 @@ export default function EditPlayerModal({ player, isOpen, onClose, onSave }) {
     }
   }, [player]);
 
+  // CLEANUP LOGIC: Before saving, we remove all special characters and capitalize the name.
+  // This ensures our database stays clean even if the user types messy text.
   const handleSave = () => {
     const finalName = editedName.trim()
       ? capitalizeWords(editedName.replace(/[^a-zA-Z\s]/g, ""))

@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { X, Edit3 } from "lucide-react";
 
+// ⌨️ INPUT MODAL: A reusable, generic popup that asks the user to type a value.
+// Because it takes `title` and `inputType` as props, we can use it to ask for a string,
+// a number, or anything else, anywhere in the app!
 export default function InputModal({
   isOpen,
   onClose,
@@ -16,6 +19,8 @@ export default function InputModal({
   const [inputValue, setInputValue] = useState(initialValue);
   const inputRef = useRef(null);
 
+  // FOCUS TRICK: When the modal opens, we use a `setTimeout` and `inputRef` to automatically
+  // put the blinking text cursor inside the box. This saves the user from having to click the box themselves.
   useEffect(() => {
     if (isOpen) {
       setInputValue(initialValue);

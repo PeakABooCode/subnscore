@@ -1,6 +1,9 @@
 import React from "react";
 import { X, List, ChevronRight } from "lucide-react";
 
+// 📋 METADATA SELECTION MODAL: This popup takes an array of strings (like a list of seasons or divisions).
+// It generates a button for every string. When the user clicks a button, it fires the `onSelect` function
+// to pass their choice back up to the parent screen.
 export default function MetadataSelectionModal({
   isOpen,
   onClose,

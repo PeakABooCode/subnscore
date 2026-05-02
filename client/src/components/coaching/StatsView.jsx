@@ -20,6 +20,9 @@ import {
 } from "lucide-react";
 import ConfirmationModal from "../common/ConfirmationModal";
 
+// 📈 STATS VIEW: This is the reporting engine. It takes all the raw logs (scores, fouls, subs)
+// and crunches the numbers to show Box Scores, Quarter Breakdowns, and Lineup Analysis.
+// It does a lot of heavy math, so it uses `useMemo` heavily to prevent freezing.
 export default function StatsView({
   roster,
   playerStats,
@@ -43,6 +46,8 @@ export default function StatsView({
   // Define the logical order of tabs for swipe navigation
   const tabs = ["boxscore", "quarters", "timeline", "lineups"];
 
+  // 📱 SWIPE GESTURES: This block calculates where the user touches their phone screen and where they let go.
+  // If the difference is big enough, it changes the tab (e.g., swiping from Box Score to Quarters).
   const handleTouchStart = (e) => {
     setTouchStart(e.targetTouches[0].clientX);
   };
@@ -78,6 +83,9 @@ export default function StatsView({
     0,
   );
 
+  // 🧮 USE MEMO: `useMemo` is like a calculator with a sticky note.
+  // It does complex math (like sorting players by their efficiency rating) and remembers the answer.
+  // It will ONLY do the math again if `roster` or `playerStats` change, keeping the app super fast.
   // Sort roster for Box Score by efficiency (EFF = score - turnovers)
   const sortedRoster = useMemo(() => {
     return [...roster].sort((a, b) => {
@@ -141,6 +149,8 @@ export default function StatsView({
     return quarters;
   }, [quarter, actionHistory, stints]);
 
+  // 🕒 QUARTER STATS: This complicated function calculates EXACTLY how many points, fouls, and minutes
+  // a specific player had during a specific quarter, accurately factoring in all their substitutions.
   const getQuarterStats = (
     playerId,
     qtr,

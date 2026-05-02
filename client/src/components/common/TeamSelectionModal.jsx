@@ -1,6 +1,9 @@
 import React from "react";
 import { X, Search, ChevronRight, Trophy, Users } from "lucide-react";
 
+// 🏀 TEAM SELECTION MODAL: A popup that displays all the teams the coach has previously saved.
+// This is a massive time-saver, allowing the coach to just click their team instead of
+// typing out the roster again for every new game.
 export default function TeamSelectionModal({
   isOpen,
   onClose,

@@ -1,4 +1,5 @@
-import React, { useMemo } from "react";
+// 📦 IMPORTS: We bring in React, some icons (like Play, Pause, Users), and a tool to format time (like 10:00).
+import React, { useMemo, useState } from "react";
 import {
   Play,
   Pause,
@@ -10,14 +11,19 @@ import {
   Clock,
   TrendingUp,
   ShieldAlert,
+  Edit3,
 } from "lucide-react";
 import { formatTime, QUARTER_SECONDS } from "../../utils/helpers";
+import InputModal from "../common/InputModal";
 
+// 🏀 LIVEVIEW COMPONENT: This is the main screen the coach uses during the game.
+// All these variables inside the parentheses are passed down from the main App.jsx file.
 export default function LiveView({
   court,
   roster,
   playerStats,
   clock,
+  setClock,
   isRunning,
   setIsRunning,
   quarter, // This is coachingQuarter
@@ -35,16 +41,43 @@ export default function LiveView({
   actionHistory = [],
   stints = [],
 }) {
+  // 🧮 CALCULATIONS: These variables automatically update whenever a player does something.
+
+  // 🕒 CLOCK EDITING STATE
+  const [isEditClockOpen, setIsEditClockOpen] = useState(false);
+
+  const handleSaveClock = (val) => {
+    let newSeconds = clock;
+    if (val.includes(":")) {
+      const parts = val.split(":");
+      const mins = parseInt(parts[0], 10);
+      const secs = parseInt(parts[1], 10);
+      if (!isNaN(mins) && !isNaN(secs)) {
+        newSeconds = mins * 60 + secs;
+      }
+    } else {
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed)) newSeconds = parsed;
+    }
+
+    if (newSeconds >= 0) setClock(newSeconds);
+  };
+
+  // Adds up all the points scored by every player on our team.
   const teamTotalScore = Object.values(playerStats).reduce(
     (acc, curr) => acc + (curr.score || 0),
     0,
   );
 
+  // Looks through the game history to find and add up all the points the opponent scored.
   const opponentScore = actionHistory
     .filter((a) => a.type === "opp_score")
     .reduce((acc, curr) => acc + (curr.amount || 0), 0);
 
-  // --- MOMENTUM CALCULATION ---
+  // 📈 MOMENTUM CALCULATION (RUNS): This looks backward through the `actionHistory`.
+  // If it sees our team scored 4+ points in a row without the opponent scoring,
+  // it triggers a "Hot Run" indicator on the screen!
+  // 📈 MOMENTUM (RUNS): Checks if our team or their team has scored 4 or more points in a row without the other team scoring.
   const currentRun = useMemo(() => {
     let runPoints = 0;
     let runType = null; // 'us' or 'them'
@@ -74,7 +107,10 @@ export default function LiveView({
       : null;
   }, [actionHistory]);
 
-  // --- SUGGESTION A: INDIVIDUAL +/- CALCULATION ---
+  // ➕/➖ PLUS-MINUS (+/-): This checks who was on the court at the exact second a point was scored.
+  // If you are on the court when your team scores, your +/- goes up.
+  // If you are on the court when the opponent scores, your +/- goes down.
+  // ➕/➖ PLUS-MINUS (+/-): A basketball stat that goes UP when our team scores and DOWN when their team scores, but ONLY for the players currently on the court.
   const playerPlusMinus = useMemo(() => {
     const pm = {};
     roster.forEach((p) => (pm[p.id] = 0));
@@ -96,7 +132,7 @@ export default function LiveView({
     return pm;
   }, [actionHistory, stints, roster]);
 
-  // --- SUGGESTION B: HOT HAND & COLD STREAK CALCULATION ---
+  // 🔥/❄️ STREAKS: Checks the last few actions. 3 scores in a row = Hot (🔥). 2 turnovers in a row = Cold (❄️).
   const playerStreaks = useMemo(() => {
     const streaks = {};
     roster.forEach((p) => {
@@ -116,7 +152,10 @@ export default function LiveView({
     return streaks;
   }, [actionHistory, roster]);
 
-  // --- SUGGESTION C: REST TIMER CALCULATION ---
+  // ⏱️ REST TIMER: This is crucial for coaches to manage player fatigue.
+  // It finds the last time a bench player was subbed out, and compares it to the current game clock.
+  // If the clock is paused, the timer pauses. It perfectly tracks real game-rest minutes.
+  // ⏱️ REST TIMER: Figures out exactly how many minutes and seconds a bench player has been resting.
   const calculateRestTime = (pId) => {
     const pStints = stints.filter((s) => s.playerId === pId);
     if (pStints.length === 0) {
@@ -139,16 +178,17 @@ export default function LiveView({
     return formatTime(restSecs);
   };
 
-  // --- DYNAMIC PERIOD NAMING ---
+  // 🏷️ PERIOD NAMES: Automatically names the periods (e.g., Quarter 4 vs Overtime 1).
   const periodName =
     quarter > 4 ? `Overtime ${quarter - 4}` : `Quarter ${quarter}`;
   const shortPeriodName = quarter > 4 ? `OT ${quarter - 4}` : `Q${quarter}`;
   const nextShortPeriodName =
     quarter >= 4 ? `OT ${quarter - 3}` : `Q${quarter + 1}`;
 
+  // 🎨 THE USER INTERFACE (UI): Everything below this line is what the coach sees on the screen.
   return (
     <div className="max-w-6xl mx-auto space-y-4 pb-24 px-2 lg:px-6">
-      {/* 1. ADAPTIVE HEADER (Scoreboard & Sticky Controls) */}
+      {/* 🏆 1. THE SCOREBOARD HEADER: Shows the team names, current scores, and the game clock. It sticks to the top of the screen. */}
       <div className="bg-slate-900 text-white p-3 md:p-5 rounded-2xl shadow-xl border-b-4 border-amber-500 sticky top-16 z-30 transition-all duration-300">
         <div className="flex flex-col gap-3">
           {/* Row 1: Scoreboard */}
@@ -169,7 +209,17 @@ export default function LiveView({
             </div>
 
             {/* Center Clock */}
-            <div className="flex flex-col items-center bg-slate-800 py-1 md:py-2 rounded-xl border border-slate-700">
+            <div
+              className="flex flex-col items-center bg-slate-800 py-1 md:py-2 rounded-xl border border-slate-700 relative group cursor-pointer hover:bg-slate-700 transition-colors"
+              title="Click to edit clock"
+              onClick={() => {
+                setIsRunning(false); // Pause clock while editing
+                setIsEditClockOpen(true);
+              }}
+            >
+              <div className="absolute top-2 right-2 md:top-3 md:right-3 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400">
+                <Edit3 size={14} />
+              </div>
               <div className="text-2xl md:text-4xl font-mono font-black tabular-nums leading-tight">
                 {formatTime(clock)}
               </div>
@@ -195,7 +245,7 @@ export default function LiveView({
             </div>
           </div>
 
-          {/* Row 2: Real-time Controls */}
+          {/* ⚙️ REAL-TIME CONTROLS: Buttons to pause/start the game clock and add opponent scores. */}
           <div className="flex items-center justify-between pt-2 border-t border-slate-800 gap-2">
             <div className="flex gap-2">
               <button
@@ -253,9 +303,9 @@ export default function LiveView({
         </div>
       </div>
 
-      {/* MAIN CONTENT GRID: 1 column on mobile, 3 columns on desktop */}
+      {/* 📱 MAIN CONTENT GRID: Arranges the court and bench side-by-side on big screens, or stacked on phones. */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 2. ON-COURT SECTION (2 Columns width on desktop) */}
+        {/* 🏃‍♂️ 2. ON-COURT SECTION: Displays the 5 players currently playing in the game. */}
         <div className="lg:col-span-2 space-y-3">
           <div className="flex justify-between items-center px-1">
             <h3 className="text-xs md:text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
@@ -268,6 +318,7 @@ export default function LiveView({
             )}
           </div>
 
+          {/* If no one is on the court yet (like at the start of the game), show this message. */}
           {court.length === 0 && (
             <div className="py-12 text-center border-2 border-dashed border-blue-300 bg-blue-50/50 rounded-2xl shadow-inner">
               <Users
@@ -280,6 +331,7 @@ export default function LiveView({
             </div>
           )}
 
+          {/* Loop through the 'court' list and create a Player Card for everyone currently playing. */}
           {court.map((id) => {
             const p = roster.find((r) => r.id === id);
             // Safety check: if player not found in roster, skip rendering to prevent crash
@@ -416,7 +468,7 @@ export default function LiveView({
           })}
         </div>
 
-        {/* 3. SIDEBAR (Bench & Team Management) */}
+        {/* 🪑 3. BENCH SECTION (SIDEBAR): Shows players waiting to sub in, and tracks team fouls/timeouts. */}
         <div className="space-y-6">
           {/* Bench Section */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
@@ -424,6 +476,7 @@ export default function LiveView({
               Available Bench
             </h3>
             <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
+              {/* Look through the whole roster, but only show players who are NOT on the court. */}
               {roster
                 .filter((p) => !court.includes(p.id))
                 .map((p) => {
@@ -556,12 +609,23 @@ export default function LiveView({
         </div>
       </div>
 
-      {/* 4. SMARTPHONE OVERLAY (Floating Warning) */}
+      {/* 🚨 4. SMARTPHONE WARNING: A floating red bar that warns the coach if they try to substitute while the clock is running. */}
       {isRunning && (
         <div className="fixed bottom-6 left-6 right-6 lg:left-auto lg:w-80 bg-red-600 text-white py-3 px-6 rounded-full text-center text-[10px] font-black uppercase tracking-widest shadow-2xl z-50 animate-pulse border-2 border-white/20 flex items-center justify-center gap-2">
           <AlertCircle size={14} /> Clock Running • Subs Locked
         </div>
       )}
+
+      {/* 5. MODALS */}
+      <InputModal
+        isOpen={isEditClockOpen}
+        onClose={() => setIsEditClockOpen(false)}
+        onSave={handleSaveClock}
+        title="Edit Game Clock"
+        message="Enter the exact time in MM:SS format."
+        initialValue={formatTime(clock)}
+        placeholder="e.g. 09:45"
+      />
     </div>
   );
 }

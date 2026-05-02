@@ -17,6 +17,9 @@ import EditPlayerModal from "../common/EditPlayerModal";
 import { capitalizeWords } from "../../utils/helpers";
 import TeamSelectionModal from "../common/TeamSelectionModal";
 
+// ⚙️ SETUP VIEW: This screen is a giant form where the coach prepares the game.
+// It handles text inputs, rule selections, and building the roster of players.
+// All the props (like `teamMeta` and `setTeamMeta`) are passed down from App.jsx.
 export default function SetupView({
   user,
   teamMeta,
@@ -64,6 +67,9 @@ export default function SetupView({
 
   const nameInputRef = useRef(null);
 
+  // 📝 SUBMIT HANDLER: When the coach clicks "Add Player", this function runs.
+  // We use a `ref` (reference) to automatically put the blinking cursor back into the Name box
+  // so the coach can type the next player really fast without using their mouse.
   const onAddPlayerSubmit = (e) => {
     handleAddPlayer(e);
     if (nameInputRef.current) {
