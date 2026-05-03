@@ -16,6 +16,8 @@ import {
   ShieldAlert,
   Trophy,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
   Monitor,
   Play,
   Pause,
@@ -1336,13 +1338,12 @@ function TeamPlayersSection({
                 onStat={onStat}
                 color={color}
                 isSelected={selectedPlayers.includes(player.id)}
-                onSelect={() => {
-                  onPlayerSelect(teamSide, player.id);
-                  // Toggle expansion; clicking a new player auto-closes the previous
+                onSelect={() => onPlayerSelect(teamSide, player.id)}
+                onExpandToggle={() =>
                   setExpandedBenchId((prev) =>
                     prev === player.id ? null : player.id,
-                  );
-                }}
+                  )
+                }
                 isExpanded={expandedBenchId === player.id}
                 isOnCourt={false}
               />
@@ -1421,6 +1422,7 @@ function PlayerCard({
   onSelect,
   isOnCourt,
   isExpanded = false,
+  onExpandToggle = () => {},
 }) {
   const themeColor = color === "blue" ? "blue" : "red";
   const pStats = stats || {
@@ -1489,9 +1491,9 @@ function PlayerCard({
           </div>
         </div>
 
-        {/* Foul button: on-court always visible; bench visible when expanded */}
-        {(isOnCourt || isExpanded) && (
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Foul button: on-court always; bench only when expanded */}
+          {(isOnCourt || isExpanded) && (
             <button
               disabled={isFouledOut}
               onClick={() => onFoul(player.id)}
@@ -1505,8 +1507,19 @@ function PlayerCard({
               <ShieldAlert size={16} />
               <span className="text-[7px] font-black uppercase leading-none mt-0.5">Foul</span>
             </button>
-          </div>
-        )}
+          )}
+
+          {/* Chevron toggle — bench players only; independent of sub selection */}
+          {!isOnCourt && (
+            <button
+              onClick={onExpandToggle}
+              title={isExpanded ? "Hide stats" : "Show stats"}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+            >
+              {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Score + stat buttons: on-court always; bench when expanded (tap card to toggle) */}
