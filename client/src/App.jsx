@@ -22,6 +22,7 @@ import {
   hydrateActions,
   dehydrateActions,
   formatTime,
+  getFibaTimeoutInfo,
 } from "./utils/helpers";
 
 axios.defaults.withCredentials = true;
@@ -2299,6 +2300,11 @@ export default function App() {
             teamFouls={teamFouls}
             timeouts={timeouts}
             addTimeout={() => {
+              const fibaTO = getFibaTimeoutInfo(coachingQuarter, coachingClock, timeouts);
+              if (!fibaTO.canCallTimeout) {
+                showNotification(`No timeouts left — ${fibaTO.periodLabel} limit reached`);
+                return;
+              }
               setTimeouts([
                 ...timeouts,
                 { quarter: coachingQuarter, clock: coachingClock },

@@ -14,7 +14,7 @@ import {
   Edit3,
   Timer,
 } from "lucide-react";
-import { formatTime, QUARTER_SECONDS } from "../../utils/helpers";
+import { formatTime, QUARTER_SECONDS, getFibaTimeoutInfo } from "../../utils/helpers";
 import InputModal from "../common/InputModal";
 
 // 🏀 LIVEVIEW COMPONENT: This is the main screen the coach uses during the game.
@@ -42,6 +42,7 @@ export default function LiveView({
   addScoreAdjust,
   actionHistory = [],
   stints = [],
+  showNotification,
 }) {
   // 🧮 CALCULATIONS: These variables automatically update whenever a player does something.
 
@@ -49,6 +50,15 @@ export default function LiveView({
   const [isEditClockOpen, setIsEditClockOpen] = useState(false);
   // Tracks which quarter the Q-start lineup suggestion was dismissed for
   const [suggestedForQuarter, setSuggestedForQuarter] = useState(null);
+
+  // Pseudo-code: "How many TOs can we still call this half/OT?" — FIBA 2024-2026 rules
+  // ELI5: A ticket counter that knows which "show" (half) we're in and how many tickets are left.
+  //       Recomputes every time the quarter, clock, or timeout list changes.
+  // Data State: fibaTO.remaining = TOs left | fibaTO.canCallTimeout = true/false
+  const fibaTO = useMemo(
+    () => getFibaTimeoutInfo(quarter, clock, timeouts),
+    [quarter, clock, timeouts]
+  );
 
   const handleSaveClock = (val) => {
     let newSeconds = clock;
@@ -1133,13 +1143,47 @@ export default function LiveView({
               </span>
             </div>
 
+            {/* Pseudo-code: Timeout button with FIBA budget display
+                ELI5: Shows "X left" tickets, dims when all used or clock is running,
+                      flashes a "last 2 min" badge so coach knows the sub-cap is active.
+                Logic: disabled = clock running OR no TOs remaining per FIBA rules
+                Data State: fibaTO.remaining 0..3 drives dot row and label */}
             <button
               onClick={addTimeout}
-              disabled={isRunning}
-              className="w-full py-4 bg-amber-500 text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-amber-400 disabled:bg-slate-800 disabled:text-slate-600 transition-all"
+              disabled={isRunning || !fibaTO.canCallTimeout}
+              className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all
+                ${fibaTO.canCallTimeout && !isRunning
+                  ? "bg-amber-500 text-slate-900 hover:bg-amber-400"
+                  : "bg-slate-800 text-slate-600 cursor-not-allowed"}`}
             >
-              Call Timeout (
-              {timeouts.filter((t) => t.quarter === quarter).length})
+              <div className="flex flex-col items-center gap-1">
+                <span>Call Timeout</span>
+                <div className="flex items-center gap-2">
+                  {/* Remaining-TO dots — filled = available, slate = used */}
+                  <div className="flex gap-1">
+                    {Array.from({ length: fibaTO.limit }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`w-2 h-2 rounded-full ${
+                          i < fibaTO.remaining
+                            ? fibaTO.canCallTimeout && !isRunning
+                              ? "bg-slate-900"
+                              : "bg-amber-400"
+                            : "bg-slate-600"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-[10px] opacity-80">
+                    {fibaTO.remaining}/{fibaTO.limit} · {fibaTO.periodLabel}
+                  </span>
+                </div>
+                {fibaTO.isLastTwoMin && (
+                  <span className="text-[9px] text-red-400 font-black tracking-widest">
+                    LAST 2 MIN CAP
+                  </span>
+                )}
+              </div>
             </button>
 
             <button

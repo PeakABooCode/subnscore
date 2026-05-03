@@ -1,5 +1,42 @@
 export const QUARTER_SECONDS = 600; // 10 minutes per quarter
 
+// Pseudo-code: "How many timeouts can this team still call, right now, per FIBA 2024-2026?"
+// ELI5: Like a ticket counter — different shows (halves/OT) have different ticket limits.
+//       In the last 2 minutes of the 4th quarter there's a special cap on top of the half cap.
+// Logic:
+//   H1 (Q1+Q2)     → pool of 2 TOs shared across both quarters
+//   H2 (Q3+Q4)     → pool of 3 TOs; sub-cap of 2 during last 2 min of Q4
+//   OT (Q5, Q6...) → 1 TO per OT period (each overtime resets its own pool)
+// Data State: returns { used, limit, remaining, canCallTimeout, periodLabel, isLastTwoMin }
+export const getFibaTimeoutInfo = (quarter, clock, timeouts) => {
+  const isLastTwoMin = quarter === 4 && clock <= 120;
+
+  if (quarter <= 2) {
+    const used = timeouts.filter((t) => t.quarter <= 2).length;
+    const limit = 2;
+    return { used, limit, remaining: Math.max(0, limit - used), canCallTimeout: used < limit, periodLabel: "1st Half", isLastTwoMin: false };
+  }
+
+  if (quarter <= 4) {
+    const h2Used = timeouts.filter((t) => t.quarter >= 3 && t.quarter <= 4).length;
+    const h2Limit = 3;
+    let canCallTimeout = h2Used < h2Limit;
+
+    // Sub-cap: in the last 2 min of Q4, at most 2 TOs may be called in that window
+    if (isLastTwoMin) {
+      const lastTwoMinUsed = timeouts.filter((t) => t.quarter === 4 && t.clock <= 120).length;
+      canCallTimeout = canCallTimeout && lastTwoMinUsed < 2;
+    }
+
+    return { used: h2Used, limit: h2Limit, remaining: Math.max(0, h2Limit - h2Used), canCallTimeout, periodLabel: "2nd Half", isLastTwoMin };
+  }
+
+  // OT: 1 TO per OT period, each period is its own independent pool
+  const used = timeouts.filter((t) => t.quarter === quarter).length;
+  const limit = 1;
+  return { used, limit, remaining: Math.max(0, limit - used), canCallTimeout: used < limit, periodLabel: `OT${quarter - 4}`, isLastTwoMin: false };
+};
+
 export const DEFAULT_COMMITTEE_KEYBINDINGS = {
   toggleGameClock: "Space",
   resetShotClock24: "KeyR",
