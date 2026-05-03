@@ -25,9 +25,10 @@ import {
   UserPlus,
   Trash2,
 } from "lucide-react";
-import { formatTime } from "../../utils/helpers";
+import { formatTime, getFibaTimeoutInfo } from "../../utils/helpers";
 import KeyboardSettingsModal from "./KeyboardSettingsModal";
 import ConfirmationModal from "../common/ConfirmationModal";
+import InputModal from "../common/InputModal";
 
 export default function CommitteeLiveView({
   initialData,
@@ -55,6 +56,22 @@ export default function CommitteeLiveView({
   const channelRef = useRef(null);
   const syncTimeoutRef = useRef(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isEditClockOpen, setIsEditClockOpen] = useState(false);
+
+  // Pseudo-code: parse MM:SS or raw seconds from the edit modal, clamp to ≥ 0
+  const handleSaveClock = (val) => {
+    let newSeconds = clock;
+    if (val.includes(":")) {
+      const [m, s] = val.split(":");
+      const mins = parseInt(m, 10);
+      const secs = parseInt(s, 10);
+      if (!isNaN(mins) && !isNaN(secs)) newSeconds = mins * 60 + secs;
+    } else {
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed)) newSeconds = parsed;
+    }
+    if (newSeconds >= 0) setClock(newSeconds);
+  };
   const [isAdvanceQuarterConfirmOpen, setIsAdvanceQuarterConfirmOpen] =
     useState(false);
   const [isSaveGameConfirmOpen, setIsSaveGameConfirmOpen] = useState(false);
@@ -79,22 +96,12 @@ export default function CommitteeLiveView({
 
   const quarterSeconds = (initialData.quarterDuration || 10) * 60;
 
-  // --- FIBA Timeout Logic ---
-  const maxTimeouts = quarter <= 2 ? 2 : quarter <= 4 ? 3 : 1;
-
-  const getUsedTimeoutsCount = (team) => {
-    if (quarter <= 2) {
-      // First Half allowance
-      return timeouts[team].filter((t) => t.quarter <= 2).length;
-    } else if (quarter <= 4) {
-      // Second Half allowance
-      return timeouts[team].filter((t) => t.quarter === 3 || t.quarter === 4)
-        .length;
-    } else {
-      // Overtime: 1 per period
-      return timeouts[team].filter((t) => t.quarter === quarter).length;
-    }
-  };
+  // --- FIBA Timeout Logic (2024-2026 rules incl. last-2-min Q4 sub-cap) ---
+  // Pseudo-code: delegate to the shared getFibaTimeoutInfo helper so committee
+  //              and coaching modules enforce identical rules.
+  // ELI5: ask "how many TOs can team X still call right now?" and get back a full info object.
+  const getTeamFibaTO = (team) =>
+    getFibaTimeoutInfo(quarter, clock, timeouts[team] || []);
 
   // --- DERIVED STATE FROM LOGS (Source of Truth) ---
   const scores = useMemo(() => {
@@ -282,9 +289,9 @@ export default function CommitteeLiveView({
         possessionArrow,
         shotClock,
         timeouts: {
-          A: getUsedTimeoutsCount("A"),
-          B: getUsedTimeoutsCount("B"),
-          max: maxTimeouts,
+          A: getTeamFibaTO("A").used,
+          B: getTeamFibaTO("B").used,
+          max: getTeamFibaTO("A").limit,
         },
       });
     }
@@ -297,7 +304,6 @@ export default function CommitteeLiveView({
     shotClock,
     initialData,
     timeouts,
-    maxTimeouts,
   ]);
 
   useEffect(() => {
@@ -533,11 +539,11 @@ export default function CommitteeLiveView({
   };
 
   const handleTimeout = (team) => {
-    const used = getUsedTimeoutsCount(team);
-    if (used >= maxTimeouts) {
-      showNotification(
-        `No timeouts remaining for ${team === "A" ? initialData.teamAName : initialData.teamBName}.`,
-      );
+    const fibaTO = getTeamFibaTO(team);
+    if (!fibaTO.canCallTimeout) {
+      const teamName = team === "A" ? initialData.teamAName : initialData.teamBName;
+      const reason = fibaTO.isLastTwoMin ? "last 2-min cap reached" : `${fibaTO.periodLabel} limit reached`;
+      showNotification(`No timeouts remaining for ${teamName} — ${reason}.`);
       return;
     }
 
@@ -683,30 +689,33 @@ export default function CommitteeLiveView({
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto lg:h-[calc(100vh-100px)] lg:overflow-hidden px-0 space-y-4">
+    <div className="max-w-[1600px] mx-auto px-0 space-y-4">
       {/* 1. TOP SCOREBOARD HEADER */}
       <div className="bg-slate-900 text-white p-4 rounded-3xl shadow-2xl border-b-4 border-amber-500 sticky top-0 z-50">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           {/* Team A Quick Info Unit */}
-          <div className="flex-1 flex items-center justify-between bg-blue-900/20 p-3 rounded-3xl border border-blue-500/30 w-full group overflow-hidden">
+          <div className="flex-1 flex items-center justify-between bg-blue-900/20 p-3 rounded-3xl border border-blue-500/30 w-full overflow-hidden">
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">
                 {initialData.teamAName}
               </p>
               <div className="flex items-center gap-3">
                 <h2 className="text-4xl font-black tabular-nums">{scores.A}</h2>
-                <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Score adjust: always visible — hover-only broke on tablets */}
+                <div className="flex flex-col gap-0.5">
                   <button
                     onClick={() => handleManualScoreAdjustment("A", 1)}
-                    className="w-5 h-5 bg-slate-800 hover:bg-blue-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    className="w-5 h-5 bg-slate-700 hover:bg-blue-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    title="Add 1 point (correction)"
                   >
                     +
                   </button>
                   <button
                     onClick={() => handleManualScoreAdjustment("A", -1)}
-                    className="w-5 h-5 bg-slate-800 hover:bg-blue-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    className="w-5 h-5 bg-slate-700 hover:bg-blue-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    title="Subtract 1 point (correction)"
                   >
-                    -
+                    −
                   </button>
                 </div>
               </div>
@@ -730,16 +739,19 @@ export default function CommitteeLiveView({
                   />
                 ))}
               </div>
-              {/* Timeouts */}
+              {/* Timeouts — FIBA 2024-2026 incl. last-2-min cap */}
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
-                  {Array.from({ length: maxTimeouts }).map((_, i) => (
+                  {Array.from({ length: getTeamFibaTO("A").limit }).map((_, i) => (
                     <div
                       key={i}
-                      className={`w-4 h-1 rounded-full ${i < maxTimeouts - getUsedTimeoutsCount("A") ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-800"}`}
+                      className={`w-4 h-1 rounded-full ${i < getTeamFibaTO("A").remaining ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-800"}`}
                     />
                   ))}
                 </div>
+                {getTeamFibaTO("A").isLastTwoMin && (
+                  <span className="text-[7px] font-black text-red-400 uppercase">L2M</span>
+                )}
                 <button
                   onClick={() => handleTimeout("A")}
                   className="bg-slate-800 hover:bg-blue-600 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter transition-colors"
@@ -751,7 +763,7 @@ export default function CommitteeLiveView({
           </div>
 
           {/* Team B Quick Info Unit */}
-          <div className="flex-1 flex items-center justify-between bg-red-900/20 p-3 rounded-3xl border border-red-500/30 w-full group overflow-hidden">
+          <div className="flex-1 flex items-center justify-between bg-red-900/20 p-3 rounded-3xl border border-red-500/30 w-full overflow-hidden">
             <div className="flex flex-col items-start gap-2">
               {/* Team Fouls */}
               <div className="flex gap-1">
@@ -762,7 +774,7 @@ export default function CommitteeLiveView({
                   />
                 ))}
               </div>
-              {/* Timeouts */}
+              {/* Timeouts — FIBA 2024-2026 incl. last-2-min cap */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleTimeout("B")}
@@ -770,11 +782,14 @@ export default function CommitteeLiveView({
                 >
                   TIMEOUT
                 </button>
+                {getTeamFibaTO("B").isLastTwoMin && (
+                  <span className="text-[7px] font-black text-red-400 uppercase">L2M</span>
+                )}
                 <div className="flex gap-1">
-                  {Array.from({ length: maxTimeouts }).map((_, i) => (
+                  {Array.from({ length: getTeamFibaTO("B").limit }).map((_, i) => (
                     <div
                       key={i}
-                      className={`w-4 h-1 rounded-full ${i < maxTimeouts - getUsedTimeoutsCount("B") ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-800"}`}
+                      className={`w-4 h-1 rounded-full ${i < getTeamFibaTO("B").remaining ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : "bg-slate-800"}`}
                     />
                   ))}
                 </div>
@@ -785,18 +800,21 @@ export default function CommitteeLiveView({
                 {initialData.teamBName}
               </p>
               <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Score adjust: always visible — hover-only broke on tablets */}
+                <div className="flex flex-col gap-0.5">
                   <button
                     onClick={() => handleManualScoreAdjustment("B", 1)}
-                    className="w-5 h-5 bg-slate-800 hover:bg-red-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    className="w-5 h-5 bg-slate-700 hover:bg-red-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    title="Add 1 point (correction)"
                   >
                     +
                   </button>
                   <button
                     onClick={() => handleManualScoreAdjustment("B", -1)}
-                    className="w-5 h-5 bg-slate-800 hover:bg-red-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    className="w-5 h-5 bg-slate-700 hover:bg-red-600 rounded text-[10px] font-black flex items-center justify-center transition-colors"
+                    title="Subtract 1 point (correction)"
                   >
-                    -
+                    −
                   </button>
                 </div>
                 <h2 className="text-4xl font-black tabular-nums">{scores.B}</h2>
@@ -814,7 +832,7 @@ export default function CommitteeLiveView({
         </div>
       </div>
 
-      <div className="flex flex-col lg:grid lg:grid-cols-3 lg:gap-4 lg:h-[calc(100vh-200px)]">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 lg:gap-4 lg:h-[calc(100vh-300px)]">
         {/* Column 1: Team A */}
         <div className="order-2 lg:order-1 h-full overflow-y-auto custom-scrollbar pr-1 pb-10">
           <TeamPlayersSection
@@ -884,9 +902,14 @@ export default function CommitteeLiveView({
                   <span className="text-[8px] font-black text-slate-500 uppercase mb-1">
                     Game Clock
                   </span>
-                  <div className="text-4xl font-mono font-black tabular-nums text-amber-500">
+                  {/* Tap clock to manually correct time — same UX as coaching module */}
+                  <button
+                    onClick={() => { setIsRunning(false); setIsEditClockOpen(true); }}
+                    className="text-4xl font-mono font-black tabular-nums text-amber-500 hover:text-amber-300 transition-colors cursor-pointer"
+                    title="Tap to edit clock"
+                  >
                     {formatTime(clock)}
-                  </div>
+                  </button>
                 </div>
                 <div className="w-px h-10 bg-slate-700"></div>
                 <div className="flex flex-col items-center">
@@ -1025,7 +1048,7 @@ export default function CommitteeLiveView({
                     No events recorded
                   </p>
                 ) : (
-                  logs.slice(0, 30).map((log, i) => {
+                  logs.map((log, i) => {
                     const isScore =
                       log.type === "SCORE" || log.type === "SCORE_ADJUST";
                     const isFoul = log.type === "FOUL";
@@ -1199,6 +1222,16 @@ export default function CommitteeLiveView({
         message="Are you sure you want to finish and save this official game record? This action cannot be undone."
         confirmText="Save Game"
         confirmButtonClass="bg-emerald-600 hover:bg-emerald-700"
+      />
+
+      {/* Clock Edit Modal */}
+      <InputModal
+        isOpen={isEditClockOpen}
+        onClose={() => setIsEditClockOpen(false)}
+        onSave={handleSaveClock}
+        title="Set Game Clock"
+        placeholder="Enter MM:SS or total seconds"
+        initialValue={formatTime(clock)}
       />
     </div>
   );
@@ -1426,23 +1459,28 @@ function PlayerCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            disabled={isFouledOut}
-            onClick={() => onFoul(player.id)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-              isFouledOut
-                ? "bg-slate-100 text-slate-300 cursor-not-allowed"
-                : "bg-white border-2 border-red-100 text-red-500 hover:bg-red-600 hover:text-white shadow-sm"
-            }`}
-          >
-            <ShieldAlert size={20} />
-          </button>
-        </div>
+        {/* Foul button — only on-court players can foul during live play */}
+        {isOnCourt && (
+          <div className="flex items-center gap-1.5">
+            <button
+              disabled={isFouledOut}
+              onClick={() => onFoul(player.id)}
+              title="Record Personal Foul"
+              className={`flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all ${
+                isFouledOut
+                  ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  : "bg-white border-2 border-red-100 text-red-500 hover:bg-red-600 hover:text-white shadow-sm"
+              }`}
+            >
+              <ShieldAlert size={16} />
+              <span className="text-[7px] font-black uppercase leading-none mt-0.5">Foul</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Point Quick Controls - always visible for quick access */}
-      {!isFouledOut && (
+      {/* Action buttons — on-court only; bench shows stats only */}
+      {isOnCourt && !isFouledOut && (
         <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-200">
           <div className="grid grid-cols-3 gap-2">
             {[1, 2, 3].map((pts) => (
