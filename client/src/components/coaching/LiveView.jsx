@@ -14,7 +14,7 @@ import {
   Edit3,
   Timer,
 } from "lucide-react";
-import { formatTime, QUARTER_SECONDS, getFibaTimeoutInfo } from "../../utils/helpers";
+import { formatTime, QUARTER_SECONDS, getFibaTimeoutInfo, haptic } from "../../utils/helpers";
 import InputModal from "../common/InputModal";
 
 // 🏀 LIVEVIEW COMPONENT: This is the main screen the coach uses during the game.
@@ -448,7 +448,7 @@ export default function LiveView({
               </span>
               <div className="flex items-center gap-1.5">
                 <button
-                  onClick={() => addScoreAdjust(-1)}
+                  onClick={() => { haptic(40); addScoreAdjust(-1); }}
                   className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-red-600 text-white font-black text-base leading-none transition-all active:scale-90 shrink-0"
                   title="Subtract 1 point (score adjust)"
                 >
@@ -458,7 +458,7 @@ export default function LiveView({
                   {teamTotalScore}
                 </span>
                 <button
-                  onClick={() => addScoreAdjust(1)}
+                  onClick={() => { haptic(40); addScoreAdjust(1); }}
                   className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-emerald-600 text-white font-black text-base leading-none transition-all active:scale-90 shrink-0"
                   title="Add 1 point (score adjust)"
                 >
@@ -520,7 +520,7 @@ export default function LiveView({
                       ? "Pause Clock"
                       : "Start Clock"
                 }
-                onClick={() => setIsRunning(!isRunning)}
+                onClick={() => { haptic(50); setIsRunning(!isRunning); }}
                 disabled={court.length !== 5}
                 className={`h-15 px-4 md:px-6 rounded-xl transition-all shadow-lg flex items-center gap-2 ${
                   court.length !== 5
@@ -541,7 +541,7 @@ export default function LiveView({
               </button>
               <button
                 title="Next Quarter"
-                onClick={() => advanceQuarter()}
+                onClick={() => { haptic([80, 50, 80]); advanceQuarter(); }}
                 className="h-15 w-12 flex items-center justify-center bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 active:scale-95"
               >
                 <RotateCcw size={16} />
@@ -556,7 +556,7 @@ export default function LiveView({
               {[1, 2, 3].map((val) => (
                 <button
                   key={val}
-                  onClick={() => addOpponentScore(val)}
+                  onClick={() => { haptic(70); addOpponentScore(val); }}
                   className="h-10 w-10 bg-slate-700 hover:bg-slate-600 active:bg-blue-900 rounded-lg font-black text-xs transition-all border border-slate-600"
                 >
                   +{val}
@@ -755,7 +755,7 @@ export default function LiveView({
                 return (
                   <React.Fragment key={id}>
                     <div
-                      onClick={() => handleSwap(id)}
+                      onClick={() => { haptic(30); handleSwap(id); }}
                       className={`p-3 md:p-4 border-2 rounded-2xl transition-all shadow-sm flex flex-col gap-2.5 cursor-pointer ${
                         isSelected
                           ? "border-blue-500 bg-blue-50 ring-2 ring-blue-100 scale-[1.01]"
@@ -879,7 +879,7 @@ export default function LiveView({
                         {[1, 2, 3].map((val) => (
                           <button
                             key={val}
-                            onClick={() => addStat(id, "score", val)}
+                            onClick={() => { haptic(70); addStat(id, "score", val); }}
                             className="h-12 bg-white rounded-lg font-black text-slate-800 shadow-sm hover:bg-slate-900 hover:text-white transition-all active:scale-95"
                           >
                             +{val}
@@ -893,7 +893,7 @@ export default function LiveView({
                         className="grid grid-cols-2 gap-2"
                       >
                         <button
-                          onClick={() => addStat(id, "turnovers", 1)}
+                          onClick={() => { haptic(60); addStat(id, "turnovers", 1); }}
                           className="h-11 rounded-xl border-2 flex items-center justify-center gap-2 transition-all active:scale-95 bg-orange-50 border-orange-100 text-orange-600 hover:bg-orange-100"
                         >
                           <span className="text-[10px] font-black uppercase">
@@ -904,7 +904,7 @@ export default function LiveView({
                           </span>
                         </button>
                         <button
-                          onClick={() => addStat(id, "fouls", 1)}
+                          onClick={() => { haptic(80); addStat(id, "fouls", 1); }}
                           className={`h-11 rounded-xl border-2 flex items-center justify-center gap-2 transition-all active:scale-95 ${
                             stats.fouls >= 4
                               ? "bg-red-600 border-red-600 text-white"
@@ -946,6 +946,7 @@ export default function LiveView({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                haptic([80, 50, 80]);
                                 handleSwap(assistedSuggestion.benchId);
                               }}
                               className="min-h-[52px] px-5 bg-white text-blue-600 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-blue-50 active:scale-95 transition-all shrink-0"
@@ -999,7 +1000,7 @@ export default function LiveView({
                   return (
                     <React.Fragment key={p.id}>
                       <button
-                        onClick={() => handleSwap(p.id)}
+                        onClick={() => { haptic(30); handleSwap(p.id); }}
                         disabled={isFouledOut}
                         className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
                           isFouledOut
@@ -1115,6 +1116,7 @@ export default function LiveView({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                haptic([80, 50, 80]);
                                 handleSwap(assistedSuggestion.courtId);
                               }}
                               className="min-h-[52px] px-5 bg-white text-blue-600 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-blue-50 active:scale-95 transition-all shrink-0"
@@ -1149,7 +1151,7 @@ export default function LiveView({
                 Logic: disabled = clock running OR no TOs remaining per FIBA rules
                 Data State: fibaTO.remaining 0..3 drives dot row and label */}
             <button
-              onClick={addTimeout}
+              onClick={() => { haptic(60); addTimeout(); }}
               disabled={isRunning || !fibaTO.canCallTimeout}
               className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all
                 ${fibaTO.canCallTimeout && !isRunning
@@ -1187,7 +1189,7 @@ export default function LiveView({
             </button>
 
             <button
-              onClick={undoLastAction}
+              onClick={() => { haptic([50, 30, 50]); undoLastAction(); }}
               className="w-full py-4 bg-slate-800 text-slate-300 border border-slate-700 rounded-xl font-black text-xs uppercase tracking-widest hover:text-white transition-all flex items-center justify-center gap-2"
             >
               <History size={14} /> Undo Mistake

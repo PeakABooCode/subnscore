@@ -1,5 +1,13 @@
 export const QUARTER_SECONDS = 600; // 10 minutes per quarter
 
+// Pseudo-code: "Make the phone buzz so the coach knows the tap registered."
+// ELI5: Like a keyboard click — silent confirmation that something happened.
+// Logic: navigator.vibrate is Android/Chrome only; iOS Safari ignores it silently.
+// Data State: pattern in ms — number = single pulse, array = pulse/pause/pulse sequence
+export const haptic = (pattern = 50) => {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+};
+
 // Pseudo-code: "How many timeouts can this team still call, right now, per FIBA 2024-2026?"
 // ELI5: Like a ticket counter — different shows (halves/OT) have different ticket limits.
 //       In the last 2 minutes of the 4th quarter there's a special cap on top of the half cap.
