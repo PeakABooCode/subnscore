@@ -33,16 +33,19 @@ export const forgotPassword = async (req, res) => {
 
     // 1. Generate a secure, URL-safe token
     const resetToken = crypto.randomBytes(32).toString("hex");
+    // Hash before storing — if the DB is ever breached, raw tokens can't be used directly.
+    // The plaintext token goes only in the email link; we never store it.
+    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
     const resetTokenExpiresAt = new Date(Date.now() + 3600000); // 1 hour from now
 
-    // 2. Save token and expiry to DB
-    console.log(`💾 Saving reset token for user ID: ${user.id}`);
+    // 2. Save HASHED token to DB (not the plaintext one)
+    console.log(`💾 Saving hashed reset token for user ID: ${user.id}`);
     await pool.query(
       "UPDATE users SET reset_token = $1, reset_token_expires_at = $2 WHERE id = $3",
-      [resetToken, resetTokenExpiresAt, user.id],
+      [hashedToken, resetTokenExpiresAt, user.id],
     );
 
-    // 3. Construct URL and send email
+    // 3. Construct URL with plaintext token (user's link) and send email
     console.log(`📧 Attempting to send email via SMTP...`);
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`;
     await sendPasswordResetEmail(email, resetUrl);
@@ -76,10 +79,13 @@ export const resetPassword = async (req, res) => {
   }
 
   try {
+    // Hash the received token to compare against the stored hash
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
     console.log("🔎 Verifying reset token in database...");
     const userResult = await pool.query(
       "SELECT id FROM users WHERE reset_token = $1 AND reset_token_expires_at > NOW()",
-      [token],
+      [hashedToken],
     );
 
     if (userResult.rows.length === 0) {
@@ -93,7 +99,7 @@ export const resetPassword = async (req, res) => {
 
     // Hash the new password
     console.log(`🔐 Hashing new password for user ID: ${user.id}`);
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(newPassword, salt);
 
     // Update password and clear reset token fields

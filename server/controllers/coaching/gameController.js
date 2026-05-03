@@ -151,8 +151,8 @@ export const saveGameSession = async (req, res) => {
     res.json({ message: "Game saved successfully!", gameId });
   } catch (err) {
     await pool.query("ROLLBACK");
-    console.error("Database Save Error:", err.message, err.code);
-    res.status(500).json({ error: "Failed to save game data.", detail: err.message });
+    console.error("Database Save Error:", err.message, err.code); // full detail stays server-side only
+    res.status(500).json({ error: "Failed to save game data." });
   }
 };
 

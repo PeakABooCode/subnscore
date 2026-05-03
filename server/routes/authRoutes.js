@@ -42,6 +42,15 @@ const forgotPasswordLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limiter for reset-password — prevents brute-forcing tokens
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: { error: "Too many reset attempts. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // --- REGISTER ROUTE ---
 router.post("/register", authLimiter, async (req, res) => {
   console.log(`📝 Attempting registration for: ${req.body.email}`);
@@ -55,8 +64,8 @@ router.post("/register", authLimiter, async (req, res) => {
   }
 
   try {
-    // Hash the password (salt rounds = 10)
-    const salt = await bcrypt.genSalt(10);
+    // Hash the password (12 rounds — stronger than 10 against GPU cracking)
+    const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
     // Save to database
@@ -162,6 +171,6 @@ router.post("/forgot-password", forgotPasswordLimiter, (req, res, next) => {
   console.log("POST /api/auth/forgot-password hit");
   forgotPassword(req, res, next);
 });
-router.post("/reset-password", resetPassword);
+router.post("/reset-password", resetPasswordLimiter, resetPassword);
 
 export default router;

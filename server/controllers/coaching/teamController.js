@@ -78,11 +78,8 @@ export const saveRoster = async (req, res) => {
     });
   } catch (err) {
     await pool.query("ROLLBACK");
-    console.error("Roster Save Error:", err.message, err.code);
-    res.status(500).json({
-      error: "Failed to save permanent roster.",
-      detail: err.message,
-    });
+    console.error("Roster Save Error:", err.message, err.code); // full detail stays server-side only
+    res.status(500).json({ error: "Failed to save permanent roster." });
   }
 };
 

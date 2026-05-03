@@ -7,6 +7,7 @@ import pgSession from "connect-pg-simple";
 import passport from "passport";
 import pool from "./config/db.js";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 import "./config/passport.js";
@@ -31,20 +32,25 @@ const globalLimiter = rateLimit({
   message: { error: "Too many requests from this IP, please try again later." },
 });
 
-app.use(express.json());
+// Security headers — sets X-Frame-Options, X-Content-Type-Options, HSTS, CSP, etc.
+app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled: Vite SPA needs inline scripts
+
+// 1mb cap — prevents multi-GB JSON payloads that would exhaust server memory
+app.use(express.json({ limit: "1mb" }));
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5000",
+  process.env.CLIENT_URL,
+  process.env.CLIENT_URL?.replace(/\/$/, ""),
+].filter(Boolean);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      const clientUrl = process.env.CLIENT_URL;
-      const isAllowed =
-        !origin ||
-        origin === "http://localhost:5173" ||
-        origin === "http://localhost:5000" ||
-        origin === clientUrl ||
-        origin === clientUrl?.replace(/\/$/, "") ||
-        origin.endsWith(".onrender.com");
-
-      if (isAllowed) {
+      // Allow server-to-server calls (no origin) and exact-match origins only.
+      // The old *.onrender.com wildcard allowed any Render app to call our API.
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`Not allowed by CORS: ${origin}`));
@@ -69,9 +75,10 @@ app.use(
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days — was 30, reduces stolen-session window
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", // blocks CSRF from cross-site form submissions
     },
   }),
 );
@@ -104,12 +111,10 @@ app.get("*all", (req, res) => {
 });
 
 // --- GLOBAL ERROR HANDLER ---
-// This prevents the server from crashing on unhandled errors and provides better debugging info
+// Logs full stack server-side; sends generic message to client to avoid leaking internals.
 app.use((err, req, res, next) => {
   console.error("❌ Global Server Error:", err.stack);
-  res
-    .status(500)
-    .json({ error: "Internal Server Error", message: err.message });
+  res.status(500).json({ error: "Internal Server Error" });
 });
 
 app.listen(PORT, () => {

@@ -12,11 +12,10 @@ const useSSL =
 // Create a new pool using the connection string from your .env file
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: useSSL
-    ? {
-        rejectUnauthorized: false,
-      }
-    : false,
+  ssl: useSSL ? { rejectUnauthorized: false } : false,
+  // Prevents runaway queries from hanging forever and exhausting the connection pool
+  statement_timeout: 30000,              // kill any query taking > 30s
+  idle_in_transaction_session_timeout: 60000, // kill idle transactions after 60s
 });
 
 // Test the connection
