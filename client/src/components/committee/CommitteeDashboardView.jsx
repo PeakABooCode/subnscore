@@ -194,18 +194,12 @@ export default function CommitteeDashboardView({
         jersey: p.jersey.toString(),
       }));
 
-      // Auto-select first 5 starters by jersey number when a roster loads
-      const sorted = [...roster].sort(
-        (a, b) => (parseInt(a.jersey, 10) || 0) - (parseInt(b.jersey, 10) || 0),
-      );
-      const defaultFive = sorted.slice(0, 5).map((p) => p.id);
-
       if (side === "A") {
         setTeamA({ name: team.name, roster });
-        setStartingFiveA(defaultFive);
+        setStartingFiveA([]); // Coach picks starters manually
       } else {
         setTeamB({ name: team.name, roster });
-        setStartingFiveB(defaultFive);
+        setStartingFiveB([]);
       }
       if (!league && team.league) setLeague(team.league);
       if (!season && team.season) setSeason(team.season);
@@ -286,11 +280,9 @@ export default function CommitteeDashboardView({
     if (isA) {
       setTeamA({ ...teamA, roster: [...teamA.roster, player] });
       setNewPlayerA({ name: "", jersey: "" });
-      if (startingFiveA.length < 5) setStartingFiveA([...startingFiveA, player.id]);
     } else {
       setTeamB({ ...teamB, roster: [...teamB.roster, player] });
       setNewPlayerB({ name: "", jersey: "" });
-      if (startingFiveB.length < 5) setStartingFiveB([...startingFiveB, player.id]);
     }
   };
 

@@ -216,13 +216,13 @@ export default function CommitteeLiveView({
   }, [clock, isRunning]);
 
   // Shot clock hits zero — sound only. Game clock keeps running; official stops it manually.
-  // playBuzzer() also calls setIsRunning(false) which is wrong for a shot clock violation.
+  // Sound temporarily disabled — uncomment the block below to re-enable the shot clock buzzer.
   useEffect(() => {
     if (shotClock === 0 && isRunning) {
-      if (buzzerRef.current) {
-        buzzerRef.current.currentTime = 0;
-        buzzerRef.current.play().catch((e) => console.error("Buzzer error:", e));
-      }
+      // if (buzzerRef.current) {
+      //   buzzerRef.current.currentTime = 0;
+      //   buzzerRef.current.play().catch((e) => console.error("Buzzer error:", e));
+      // }
     }
   }, [shotClock, isRunning]);
 
@@ -1474,8 +1474,8 @@ function PlayerCard({
           </div>
         </div>
 
-        {/* Foul button — only on-court players can foul during live play */}
-        {isOnCourt && (
+        {/* Foul + stat buttons visible for on-court players always, bench players when selected */}
+        {(isOnCourt || isSelected) && (
           <div className="flex items-center gap-1.5">
             <button
               disabled={isFouledOut}
@@ -1494,8 +1494,8 @@ function PlayerCard({
         )}
       </div>
 
-      {/* Action buttons — on-court only; bench shows stats only */}
-      {isOnCourt && !isFouledOut && (
+      {/* Action buttons — always for on-court; for bench when selected (tap to expand) */}
+      {(isOnCourt || isSelected) && !isFouledOut && (
         <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-slate-200">
           <div className="grid grid-cols-3 gap-2">
             {[1, 2, 3].map((pts) => (
